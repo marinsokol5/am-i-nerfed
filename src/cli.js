@@ -1,326 +1,384 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomBytes, randomUUID } from "node:crypto";
-import { generate } from "./generate.js";
-import { evaluateRun } from "./submission.js";
-import { examAction } from "./exam.js";
+import { spawnSync } from "node:child_process";
+import { createInterface } from "node:readline/promises";
 import {
   withLock,
   privateDirectory,
   writeJSON,
+  readJSON,
   active,
-  newRun,
-  datasetFor,
-  readRun,
 } from "./storage.js";
-import { installSkill } from "./install.js";
 import {
-  DIFFICULTIES,
-  DEFAULT_DIFFICULTY,
-  difficultyLevel,
-} from "./difficulty.js";
-const usage = `am-i-nerfed — private reasoning benchmark\n\n  init [--reset] [--yes] [--agent NAME] [--global|--project] [--copy]\n  question [--difficulty easy|normal|hard] [--new]\n  question --run ID\n  eval --run ID [--file answer.json] [--label TEXT]\n  status [--difficulty LEVEL]\n  history [--difficulty LEVEL]\n  exam start [--seconds 120|300]\n  exam question --exam ID --question q1\n  exam save --exam ID --question q1 [--json JSON | --file PATH]\n  exam status --exam ID\n  exam finish --exam ID\n\ninit opens the standard Agent Skills interactive installer. Use --yes explicitly\nfor headless installation (project scope unless --global is supplied).\nquestion defaults to normal and always allocates a fresh independent run.\nUse question --run ID to resume exactly that run; keep its ID through submission.\neval reads one JSON answer from stdin or --file. Valid JSON consumes the run,\nincluding null, missing sections and schema errors. Invalid JSON does not.\nIdentical JSON delivery retries return the same receipt; changed answers fail.\nAM_I_NERFED_HOME overrides the private state directory; keep it outside projects.\n`;
-function options(args, allowed) {
+  appVersion,
+  prepareBank,
+  startAssessment,
+  assessmentAction,
+  listHistory,
+} from "./assessment.js";
+import { runAssessment } from "./runner.js";
+import { installSkill } from "./install.js";
+
+const help = `am-i-nerfed — private reasoning assessments
+
+  init [--agent codex|claude] [--model MODEL] [--effort LEVEL]
+  run [--agent codex|claude] [--model MODEL] [--effort LEVEL]
+      [--difficulty easy|medium|hard] [--seconds 120|300] [--json]
+  start [--difficulty easy|medium|hard] [--seconds 120|300]
+        [--invocation skill|manual] [--agent NAME] [--provider NAME]
+        [--model MODEL] [--effort LEVEL]
+  question --run ID --task ID
+  answer --run ID --task ID [--json JSON | --file PATH | stdin]
+  status --run ID
+  finish --run ID
+  history list [--model MODEL] [--effort LEVEL] [--provider NAME]
+               [--agent NAME] [--invocation cli|skill|manual]
+               [--difficulty LEVEL] [--seconds N] [--version VERSION]
+               [--task-version N] [--baseline ID] [--status STATUS] [--json]
+  reset --yes
+  doctor
+  skill install [--yes] [--agent NAME] [--global|--project] [--copy]
+  --version
+
+Five tasks per assessment; default medium difficulty and 120 seconds.
+run launches a fresh native CLI session with a process watchdog.
+start/question/answer/status/finish compose an in-context assessment. They
+enforce the answer deadline but cannot stop an independently hosted agent.
+Difficulty and reasoning effort are different settings. Unknown metadata
+should be omitted. Transport commands return JSON. run/history have --json
+for scripts; progress goes to stderr.
+`;
+function options(args, values = [], booleans = []) {
   const out = {};
   for (let i = 0; i < args.length; i++) {
-    const name = args[i];
-    if (!allowed.has(name)) throw Error(`Unknown option: ${name}`);
-    if (allowed.get(name) === "boolean") {
-      out[name] = true;
+    const key = args[i];
+    if (booleans.includes(key)) {
+      out[key] = true;
       continue;
     }
-    if (!args[i + 1] || args[i + 1].startsWith("--"))
-      throw Error(`Missing value for ${name}`);
-    if (name === "--agent") (out[name] ??= []).push(args[++i]);
-    else out[name] = args[++i];
+    if (!values.includes(key)) throw Error(`Unknown option: ${key}`);
+    if (args[i + 1] === undefined || args[i + 1].startsWith("--"))
+      throw Error(`Missing value for ${key}`);
+    if (Object.hasOwn(out, key)) throw Error(`Repeated option: ${key}`);
+    const value = args[++i];
+    if (key !== "--json" && value.length > 300)
+      throw Error(`Value too long for ${key}`);
+    out[key] = value;
   }
   return out;
 }
-function print(value) {
+const print = (value) =>
   process.stdout.write(JSON.stringify(value, null, 2) + "\n");
+const text = (value) =>
+  String(value ?? "unknown").replace(/[\u0000-\u001f\u007f]/g, " ");
+function printRun(run) {
+  if (run.failure) {
+    process.stdout.write(`Measurement failed: ${text(run.failure)}\n`);
+    return;
+  }
+  process.stdout.write(
+    `${run.result.percent.toFixed(1)}% correct\n` +
+      `${text(run.agent)} · ${text(run.model)} · effort ${text(run.effort)} · ${run.difficulty} tasks · ${run.clock.elapsedSeconds}/${run.clock.durationSeconds}s\n` +
+      run.result.tasks
+        .map((t) => `${t.family}: ${t.percent.toFixed(1)}%`)
+        .join(" · ") +
+      "\n" +
+      `Am I nerfed ${run.appVersion} · task bank v${run.taskBankVersion} · ${run.invocation}\n`,
+  );
 }
-async function readSubmission(filename) {
-  if (filename) {
-    const st = fs.statSync(filename);
-    if (st.size > 1048576) throw Error("Submission exceeds 1 MiB");
-    const source = fs.readFileSync(filename, "utf8");
-    if (Buffer.byteLength(source, "utf8") > 1048576)
-      throw Error("Submission exceeds 1 MiB");
-    return source;
+function printHistory(history) {
+  if (!history.runs.length) {
+    process.stdout.write("No matching assessments.\n");
+    return;
   }
-  const chunks = [];
-  let size = 0;
-  for await (const chunk of process.stdin) {
-    size += chunk.length;
-    if (size > 1048576) throw Error("Submission exceeds 1 MiB");
-    chunks.push(chunk);
+  const rows = [
+    [
+      "Date (UTC)",
+      "Provider",
+      "Model",
+      "Effort",
+      "Invocation",
+      "Difficulty",
+      "Score",
+      "Seconds",
+      "App",
+      "Bank",
+      "Status",
+    ],
+    ...history.runs.map((r) => [
+      r.startedAt.slice(0, 16),
+      r.provider,
+      r.model,
+      r.effort,
+      r.invocation,
+      r.difficulty,
+      r.percent == null ? "—" : `${r.percent.toFixed(1)}%`,
+      `${r.elapsedSeconds}/${r.durationSeconds}`,
+      r.appVersion,
+      `v${r.taskBankVersion}/${r.baselineId.slice(0, 8)}`,
+      r.status,
+    ]),
+  ].map((row) => row.map(text));
+  const widths = rows[0].map((_, i) =>
+    Math.max(...rows.map((row) => row[i].length)),
+  );
+  process.stdout.write(
+    rows
+      .map((row) =>
+        row
+          .map((cell, i) => cell.padEnd(widths[i]))
+          .join("  ")
+          .trimEnd(),
+      )
+      .join("\n") + "\n",
+  );
+}
+const settingFlags = ["--agent", "--model", "--effort"];
+const assessmentFlags = ["--difficulty", "--seconds"];
+function settings(opts) {
+  return Object.fromEntries(
+    Object.entries(opts).map(([k, v]) => [
+      k.slice(2),
+      k === "--seconds" ? Number(v) : v,
+    ]),
+  );
+}
+async function input(opts) {
+  if (opts["--json"] !== undefined && opts["--file"])
+    throw Error("Choose --json, --file, or stdin");
+  let source = opts["--json"];
+  if (source === undefined && opts["--file"]) {
+    if (fs.statSync(opts["--file"]).size > 1048576)
+      throw Error("Answer exceeds 1 MiB");
+    source = fs.readFileSync(opts["--file"], "utf8");
   }
-  return Buffer.concat(chunks).toString("utf8");
+  if (source === undefined) {
+    const chunks = [];
+    let size = 0;
+    for await (const chunk of process.stdin) {
+      size += chunk.length;
+      if (size > 1048576) throw Error("Answer exceeds 1 MiB");
+      chunks.push(chunk);
+    }
+    source = Buffer.concat(chunks).toString("utf8");
+  }
+  if (Buffer.byteLength(source) > 1048576) throw Error("Answer exceeds 1 MiB");
+  try {
+    return JSON.parse(source);
+  } catch {
+    throw Error("Invalid JSON; no answer was accepted");
+  }
+}
+function readSettings(root) {
+  const p = path.join(root, "settings.json");
+  return fs.existsSync(p) ? readJSON(p) : {};
 }
 export async function main(args = process.argv.slice(2)) {
   const [command, ...rest] = args;
   if (!command || ["help", "--help", "-h"].includes(command)) {
-    process.stdout.write(usage);
+    process.stdout.write(help);
     return;
   }
   if (command === "--version") {
-    const { version } = JSON.parse(
-      fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"),
-    );
-    process.stdout.write(version + "\n");
+    process.stdout.write(appVersion() + "\n");
     return;
   }
-  if (command === "exam") {
-    const [action, ...examArgs] = rest;
-    const flags = new Map(
-      action === "start" ? [["--seconds", "value"]] : [["--exam", "value"]],
+  if (command === "skill") {
+    if (rest[0] !== "install") throw Error("Use skill install");
+    const opts = options(
+      rest.slice(1),
+      ["--agent"],
+      ["--yes", "--global", "--project", "--copy"],
     );
-    if (["question", "save"].includes(action)) flags.set("--question", "value");
-    if (action === "save") {
-      flags.set("--json", "value");
-      flags.set("--file", "value");
-    }
-    if (!["start", "question", "save", "status", "finish"].includes(action))
-      throw Error("Use exam start, question, save, status, or finish");
-    const opts = options(examArgs, flags);
-    if (
-      opts["--seconds"] !== undefined &&
-      !["120", "300"].includes(opts["--seconds"])
-    )
-      throw Error("Choose --seconds 120 or --seconds 300");
-    if (action !== "start" && !opts["--exam"])
-      throw Error("An --exam ID is required");
-    if (["question", "save"].includes(action) && !opts["--question"])
-      throw Error("A --question ID is required");
-    let patch;
-    if (action === "save") {
-      if (opts["--json"] !== undefined && opts["--file"])
-        throw Error("Choose --json, --file, or stdin, not multiple inputs");
-      const source = opts["--json"] ?? (await readSubmission(opts["--file"]));
-      if (Buffer.byteLength(source, "utf8") > 1048576)
-        throw Error("Submission exceeds 1 MiB");
+    if (opts["--agent"]) opts["--agent"] = [opts["--agent"]];
+    print({ skill: await installSkill(opts) });
+    return;
+  }
+  if (command === "doctor") {
+    options(rest);
+    const clients = ["codex", "claude"].map((agent) => {
+      const result = spawnSync(agent, ["--version"], {
+        encoding: "utf8",
+        timeout: 10000,
+      });
+      return {
+        agent,
+        available: result.status === 0,
+        version: result.status === 0 ? result.stdout.trim() : null,
+      };
+    });
+    print({
+      appVersion: appVersion(),
+      clients,
+      supervisedRunner: process.platform !== "win32",
+      note: "No model calls were made. Authentication was not tested.",
+    });
+    return;
+  }
+  if (command === "init" || command === "reset") {
+    const opts = options(
+      rest,
+      command === "init" ? settingFlags : [],
+      command === "reset" ? ["--yes"] : [],
+    );
+    if (command === "reset" && !opts["--yes"])
+      throw Error(
+        "Reset creates a new bank and baseline; use reset --yes. Old history is preserved.",
+      );
+    const chosen = settings(opts);
+    delete chosen.yes;
+    if (chosen.agent && !["codex", "claude"].includes(chosen.agent))
+      throw Error("Choose agent codex or claude");
+    if (command === "init" && process.stdin.isTTY && process.stdout.isTTY) {
+      const saved = withLock(readSettings);
+      Object.assign(chosen, { ...saved, ...chosen });
+      const terminal = createInterface({
+        input: process.stdin,
+        output: process.stderr,
+      });
       try {
-        patch = JSON.parse(source);
-      } catch {
-        throw Error("Invalid JSON draft; no answers were saved or graded");
+        if (!chosen.agent)
+          chosen.agent = (
+            await terminal.question(
+              "Default agent (codex/claude, blank to configure later): ",
+            )
+          ).trim();
+        if (chosen.agent && !["codex", "claude"].includes(chosen.agent))
+          throw Error("Choose codex or claude");
+        if (chosen.agent && !chosen.model)
+          chosen.model = (
+            await terminal.question("Model ID to measure: ")
+          ).trim();
+        if (chosen.agent && !chosen.effort)
+          chosen.effort =
+            (await terminal.question("Reasoning effort [medium]: ")).trim() ||
+            "medium";
+      } finally {
+        terminal.close();
       }
     }
-    withLock((root) => {
-      const result = examAction(active(root), action, {
-        examId: opts["--exam"],
-        questionId: opts["--question"],
-        durationSeconds:
-          opts["--seconds"] === undefined
-            ? undefined
-            : Number(opts["--seconds"]),
-        patch,
-      });
-      print(result);
-      if (result.accepted === false) process.exitCode = 1;
-    });
-    return;
-  }
-  if (command === "init") {
-    const opts = options(
-      rest,
-      new Map([
-        ["--reset", "boolean"],
-        ["--yes", "boolean"],
-        ["--global", "boolean"],
-        ["--copy", "boolean"],
-        ["--project", "boolean"],
-        ["--agent", "value"],
-      ]),
-    );
-    // Installation is explicit init behavior. Never called while answering a question.
-    const installation = await installSkill(opts);
-    if (!installation) {
-      process.stderr.write(
-        "Initialization cancelled; your private baseline was not changed.\n",
-      );
-      return;
-    }
-    withLock((root) => {
+    const result = withLock((root) => {
       const pointer = path.join(root, "current.json");
-      if (fs.existsSync(pointer) && !opts["--reset"]) {
-        const state = active(root);
-        for (const level of DIFFICULTIES) datasetFor(state, level);
-        print({
-          initialized: true,
-          existing: true,
-          baselineId: state.current.baselineId,
-          skill: installation,
-          difficulties: DIFFICULTIES,
-          defaultDifficulty: DEFAULT_DIFFICULTY,
+      let state,
+        existing = false;
+      if (command === "init" && fs.existsSync(pointer)) {
+        state = active(root);
+        existing = true;
+      } else {
+        const baselineId = randomUUID(),
+          base = path.join(root, "baselines", baselineId),
+          dataset = { seed: randomBytes(32).toString("hex") };
+        privateDirectory(base);
+        writeJSON(path.join(base, "dataset.json"), dataset, {
+          exclusive: true,
         });
-        return;
+        state = { base, current: { baselineId }, dataset };
       }
-      process.stderr.write(
-        "Generating and validating your private case locally…\n",
-      );
-      const seed = randomBytes(32).toString("hex"),
-        dataset = generate(seed),
-        baselineId = randomUUID(),
-        base = path.join(root, "baselines", baselineId);
-      privateDirectory(path.join(base, "runs"));
-      writeJSON(
-        path.join(base, "dataset.json"),
-        { ...dataset, seed, baselineId, createdAt: new Date().toISOString() },
-        { exclusive: true },
-      );
-      const current = { baselineId, runId: null, runIds: {} };
-      const state = { current, base, dataset: { ...dataset, seed } };
-      for (const level of DIFFICULTIES) datasetFor(state, level);
-      writeJSON(pointer, current);
-      print({
+      const bank = prepareBank(state);
+      if (!existing) writeJSON(pointer, state.current);
+      if (Object.keys(chosen).length)
+        writeJSON(path.join(root, "settings.json"), {
+          ...readSettings(root),
+          ...chosen,
+        });
+      return {
         initialized: true,
-        existing: false,
-        baselineId,
-        difficulties: DIFFICULTIES,
-        defaultDifficulty: DEFAULT_DIFFICULTY,
-        skill: installation,
-        reset: Boolean(opts["--reset"]),
-        note: "Stable private baseline created. Invoke /am-i-nerfed or $am-i-nerfed in a fresh chat.",
-      });
-    });
-    return;
-  }
-  if (command === "question") {
-    const opts = options(
-      rest,
-      new Map([
-        ["--new", "boolean"],
-        ["--run", "value"],
-        ["--difficulty", "value"],
-      ]),
-    );
-    const selected = difficultyLevel(opts["--difficulty"]);
-    if (opts["--run"] && opts["--new"])
-      throw Error(
-        "--run resumes an existing run; it cannot be combined with --new.",
-      );
-    withLock((root) => {
-      const state = active(root);
-      let run,
-        dataset,
-        difficulty = selected;
-      if (opts["--run"]) {
-        run = readRun(state.base, opts["--run"]);
-        if (
-          run.id !== opts["--run"] ||
-          run.baselineId !== state.current.baselineId
-        )
-          throw Error("Run does not belong to the current baseline");
-        difficulty = run.difficulty;
-        if (opts["--difficulty"] && selected !== difficulty)
-          throw Error(
-            "Requested difficulty does not match this run; keep its original ID and difficulty.",
-          );
-        dataset = datasetFor(state, difficulty, { create: false });
-        if (run.promptHash && run.promptHash !== dataset.promptHash)
-          throw Error("The frozen case no longer matches this run.");
-      } else {
-        dataset = datasetFor(state, difficulty);
-        run = newRun(root, state, difficulty, dataset);
-      }
-      print({
-        runId: run.id,
-        runStatus: run.status,
+        existing,
         baselineId: state.current.baselineId,
-        difficulty,
-        generatorVersion: dataset.generatorVersion,
-        promptHash: dataset.promptHash,
-        prompt: dataset.prompt,
-        submission: {
-          command: `am-i-nerfed eval --run ${run.id}`,
-          format:
-            "One best-effort JSON answer on stdin; unknowns may be null. Identical delivery retries are safe.",
-        },
-      });
+        taskBankVersion: bank.taskBankVersion,
+        tasks: bank.tasks.length,
+        difficulties: ["easy", "medium", "hard"],
+        defaultDifficulty: "medium",
+        defaultSeconds: 120,
+        defaults: readSettings(root),
+      };
     });
+    print(result);
     return;
   }
-  if (command === "eval") {
+  if (command === "run") {
     const opts = options(
       rest,
-      new Map([
-        ["--run", "value"],
-        ["--file", "value"],
-        ["--label", "value"],
-      ]),
+      [...settingFlags, ...assessmentFlags],
+      ["--json"],
     );
-    if (!opts["--run"]) throw Error("eval requires --run ID from question");
-    if ((opts["--label"]?.length || 0) > 200)
-      throw Error("Label must be at most 200 characters");
-    let submission;
-    try {
-      submission = JSON.parse(await readSubmission(opts["--file"]));
-    } catch (e) {
-      throw Error(
-        `Submission not accepted: ${e.message}. No score was queried and the run was not consumed.`,
-      );
-    }
-    withLock((root) => {
-      const state = active(root);
-      print(
-        evaluateRun(state, opts["--run"], submission, opts["--label"] || null),
-      );
-    });
+    const chosen = { ...withLock(readSettings), ...settings(opts) };
+    process.stderr.write(
+      `Running ${chosen.difficulty ?? "medium"} assessment through ${chosen.agent ?? "unconfigured client"}…\n`,
+    );
+    const result = await runAssessment(chosen);
+    if (opts["--json"]) print(result);
+    else printRun(result);
+    if (result.failure) process.exitCode = 1;
     return;
   }
-  if (command === "status" || command === "history") {
-    const opts = options(rest, new Map([["--difficulty", "value"]]));
-    const difficulty = difficultyLevel(opts["--difficulty"]);
-    withLock((root) => {
-      const state = active(root);
-      if (command === "status") {
-        const currentRuns = Object.fromEntries(
-          DIFFICULTIES.map((level) => {
-            const id = state.current.runIds[level];
-            const run = id ? readRun(state.base, id) : null;
-            return [
-              level,
-              run
-                ? {
-                    id: run.id,
-                    difficulty: level,
-                    status: run.status === "pending" ? "pending" : "consumed",
-                    generatorVersion:
-                      run.generatorVersion ??
-                      (level === "hard"
-                        ? state.dataset.generatorVersion
-                        : null),
-                    promptHash:
-                      run.promptHash ??
-                      (level === "hard" ? state.dataset.promptHash : null),
-                  }
-                : null,
-            ];
-          }),
-        );
-        print({
-          baselineId: state.current.baselineId,
-          difficulty,
-          defaultDifficulty: DEFAULT_DIFFICULTY,
-          currentRun: currentRuns[difficulty],
-          currentRuns,
-        });
-      } else {
-        const runs = fs
-          .readdirSync(path.join(state.base, "runs"))
-          .filter((n) => n.endsWith(".json"))
-          .map((n) => readRun(state.base, n.slice(0, -5)))
-          .filter(
-            (run) => !opts["--difficulty"] || run.difficulty === difficulty,
-          )
-          .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-        print({
-          baselineId: state.current.baselineId,
-          difficulty: opts["--difficulty"] ?? "all",
-          runs,
-        });
-      }
-    });
+  if (command === "start") {
+    const opts = options(rest, [
+      ...settingFlags,
+      ...assessmentFlags,
+      "--invocation",
+      "--provider",
+    ]);
+    if (
+      opts["--invocation"] &&
+      !["skill", "manual"].includes(opts["--invocation"])
+    )
+      throw Error(
+        "Direct start uses skill or manual; use run for a supervised CLI assessment",
+      );
+    print(withLock((root) => startAssessment(active(root), settings(opts))));
+    return;
+  }
+  if (["question", "answer", "status", "finish"].includes(command)) {
+    const opts = options(rest, [
+      "--run",
+      ...(["question", "answer"].includes(command) ? ["--task"] : []),
+      ...(command === "answer" ? ["--json", "--file"] : []),
+    ]);
+    if (!opts["--run"]) throw Error("Retain the --run ID returned by start");
+    if (["question", "answer"].includes(command) && !opts["--task"])
+      throw Error("A --task ID is required");
+    const patch = command === "answer" ? await input(opts) : undefined;
+    const result = withLock((root) =>
+      assessmentAction(active(root), command, {
+        runId: opts["--run"],
+        taskId: opts["--task"],
+        patch,
+      }),
+    );
+    print(result);
+    if (result.accepted === false) process.exitCode = 1;
+    return;
+  }
+  if (command === "history") {
+    const historyArgs = rest[0] === "list" ? rest.slice(1) : rest;
+    const map = {
+      "--model": "model",
+      "--effort": "effort",
+      "--provider": "provider",
+      "--agent": "agent",
+      "--invocation": "invocation",
+      "--difficulty": "difficulty",
+      "--seconds": "durationSeconds",
+      "--version": "appVersion",
+      "--task-version": "taskBankVersion",
+      "--baseline": "baselineId",
+      "--status": "status",
+    };
+    const opts = options(historyArgs, Object.keys(map), ["--json"]);
+    const result = withLock((root) =>
+      listHistory(
+        root,
+        Object.fromEntries(
+          Object.entries(opts)
+            .filter(([k]) => k !== "--json")
+            .map(([k, v]) => [map[k], v]),
+        ),
+      ),
+    );
+    if (opts["--json"]) print(result);
+    else printHistory(result);
     return;
   }
   throw Error(`Unknown command: ${command}. Use --help.`);

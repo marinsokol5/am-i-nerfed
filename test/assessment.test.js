@@ -1,0 +1,291 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { generateTaskBank } from "../src/task-bank.js";
+import {
+  startAssessment,
+  assessmentAction,
+  assessmentPath,
+  listHistory,
+  annotateAssessment,
+} from "../src/assessment.js";
+const bank = generateTaskBank("synthetic-assessment");
+function fixture() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "am-i-nerfed-test-"));
+  const state = {
+    base: path.join(root, "baselines", randomUUID()),
+    current: {},
+    dataset: { seed: "synthetic-assessment" },
+  };
+  state.current.baselineId = path.basename(state.base);
+  fs.mkdirSync(state.base, { recursive: true });
+  fs.writeFileSync(
+    path.join(state.base, "task-bank.json"),
+    JSON.stringify(bank),
+  );
+  fs.writeFileSync(
+    path.join(state.base, "dataset.json"),
+    JSON.stringify(state.dataset),
+  );
+  fs.writeFileSync(
+    path.join(root, "current.json"),
+    JSON.stringify(state.current),
+  );
+  return {
+    root,
+    state,
+    cleanup: () => fs.rmSync(root, { recursive: true, force: true }),
+  };
+}
+test("five-task run preserves partial work, grades equally and permanently closes on early finish", () => {
+  const f = fixture(),
+    now = Date.now();
+  try {
+    const start = startAssessment(
+      f.state,
+      { invocation: "skill", model: "known-model", effort: "high" },
+      now,
+    );
+    assert.equal(start.tasks.length, 5);
+    assert.equal(start.difficulty, "medium");
+    assert.equal(start.clock.remainingSeconds, 120);
+    assert.equal(start.clockEnforcement, "answer-deadline");
+    assert.equal(start.result, undefined);
+    const runId = start.runId,
+      taskId = start.tasks[0].id;
+    assessmentAction(
+      f.state,
+      "answer",
+      { runId, taskId, patch: { knowledge: { a: true, b: true } } },
+      () => now + 1,
+    );
+    assessmentAction(
+      f.state,
+      "answer",
+      {
+        runId,
+        taskId,
+        patch: JSON.parse(
+          '{"knowledge":{"b":null},"__proto__":{"polluted":true}}',
+        ),
+      },
+      () => now + 2,
+    );
+    const question = assessmentAction(
+      f.state,
+      "question",
+      { runId, taskId },
+      () => now + 3,
+    );
+    assert.deepEqual(question.draft.knowledge, { a: true, b: null });
+    assert.equal({}.polluted, undefined);
+    assert.equal(question.result, undefined);
+    assessmentAction(
+      f.state,
+      "answer",
+      { runId, taskId, patch: null },
+      () => now + 4,
+    );
+    assessmentAction(
+      f.state,
+      "answer",
+      { runId, taskId, patch: bank.tasks.find((t) => t.id === taskId).answer },
+      () => now + 5,
+    );
+    const receipt = assessmentAction(
+      f.state,
+      "finish",
+      { runId },
+      () => now + 30000,
+    );
+    assert.equal(receipt.result.percent, 20);
+    assert.equal(receipt.clock.elapsedSeconds, 30);
+    assert.equal(receipt.status, "finished");
+    const refused = assessmentAction(
+      f.state,
+      "answer",
+      { runId, taskId, patch: null },
+      () => now + 31000,
+    );
+    assert.equal(refused.accepted, false);
+    assert.equal(refused.result.percent, 20);
+    assert.deepEqual(
+      assessmentAction(f.state, "finish", { runId }, () => now + 40000),
+      receipt,
+    );
+  } finally {
+    f.cleanup();
+  }
+});
+test("exact deadline and processing that crosses it reject new work, freezing the old answer", () => {
+  const f = fixture(),
+    now = Date.now();
+  try {
+    const start = startAssessment(f.state, {}, now),
+      runId = start.runId,
+      taskId = start.tasks[0].id;
+    let ticks = [now + 119999, now + 120000];
+    const result = assessmentAction(
+      f.state,
+      "answer",
+      { runId, taskId, patch: bank.tasks.find((t) => t.id === taskId).answer },
+      () => ticks.shift(),
+    );
+    assert.equal(result.accepted, false);
+    assert.equal(result.status, "expired");
+    assert.equal(result.result.percent, 0);
+    assert.equal(result.clock.elapsedSeconds, 120);
+    const record = JSON.parse(fs.readFileSync(assessmentPath(f.state, runId)));
+    assert.deepEqual(record.drafts, {});
+  } finally {
+    f.cleanup();
+  }
+});
+test("history separates invocation, difficulty, package and task versions, and suppresses failed scores", () => {
+  const f = fixture(),
+    now = Date.now();
+  try {
+    const a = startAssessment(
+      f.state,
+      {
+        invocation: "cli",
+        agent: "codex",
+        provider: "openai",
+        model: "m1",
+        effort: "medium",
+        difficulty: "hard",
+        seconds: 300,
+      },
+      now,
+    );
+    assessmentAction(f.state, "finish", { runId: a.runId }, () => now + 10);
+    const b = startAssessment(
+      f.state,
+      {
+        invocation: "skill",
+        agent: "other",
+        provider: "other",
+        model: "m1",
+        effort: "high",
+      },
+      now + 20,
+    );
+    assessmentAction(f.state, "finish", { runId: b.runId }, () => now + 30);
+    annotateAssessment(f.state, a.runId, { failure: "Transport failed" });
+    const all = listHistory(f.root).runs;
+    assert.equal(all.length, 2);
+    assert.equal(all.find((x) => x.runId === a.runId).percent, null);
+    const filtered = listHistory(f.root, {
+      invocation: "skill",
+      effort: "high",
+      model: "m1",
+      taskBankVersion: "1",
+      appVersion: b.appVersion,
+    }).runs;
+    assert.equal(filtered.length, 1);
+    assert.equal(filtered[0].runId, b.runId);
+    assert.ok(!JSON.stringify(all).includes("drafts"));
+    assert.ok(!JSON.stringify(all).includes("synthetic-assessment"));
+    // Current pointer changes do not erase history from prior banks.
+    fs.writeFileSync(
+      path.join(f.root, "current.json"),
+      JSON.stringify({ baselineId: randomUUID() }),
+    );
+    assert.equal(listHistory(f.root).runs.length, 2);
+  } finally {
+    f.cleanup();
+  }
+});
+test("frozen bank integrity is checked and invalid levels cannot create an assessment", () => {
+  const f = fixture();
+  try {
+    assert.throws(
+      () => startAssessment(f.state, { difficulty: "normal" }),
+      /difficulty/,
+    );
+    assert.throws(() => startAssessment(f.state, { seconds: 60 }), /allowance/);
+    assert.equal(fs.existsSync(path.join(f.state.base, "assessments")), false);
+    const start = startAssessment(f.state);
+    const changed = structuredClone(bank);
+    changed.tasks[0].answer = { knowledge: { wrong: true } };
+    fs.writeFileSync(
+      path.join(f.state.base, "task-bank.json"),
+      JSON.stringify(changed),
+    );
+    assert.throws(
+      () => assessmentAction(f.state, "finish", { runId: start.runId }),
+      /bank changed/,
+    );
+  } finally {
+    f.cleanup();
+  }
+});
+test("public CLI supports stdin answers and filterable history without installing a skill", () => {
+  const f = fixture(),
+    bin = fileURLToPath(new URL("../bin/am-i-nerfed.js", import.meta.url));
+  const run = (args, input) =>
+    spawnSync(process.execPath, [bin, ...args], {
+      env: { ...process.env, AM_I_NERFED_HOME: f.root },
+      input,
+      encoding: "utf8",
+    });
+  try {
+    const started = run([
+      "start",
+      "--invocation",
+      "skill",
+      "--model",
+      "test-model",
+      "--effort",
+      "high",
+    ]);
+    assert.equal(started.status, 0, started.stderr);
+    const start = JSON.parse(started.stdout);
+    const args = ["answer", "--run", start.runId, "--task", start.tasks[0].id];
+    const invalid = run([...args, "--json", "{"]);
+    assert.equal(invalid.status, 1);
+    assert.equal(invalid.stdout, "");
+    assert.equal(run(args, '{"knowledge":{"partial":true}}').status, 0);
+    assert.equal(run(["finish", "--run", start.runId]).status, 0);
+    const listed = run([
+      "history",
+      "list",
+      "--json",
+      "--model",
+      "test-model",
+      "--effort",
+      "high",
+      "--invocation",
+      "skill",
+    ]);
+    assert.equal(listed.status, 0, listed.stderr);
+    assert.equal(JSON.parse(listed.stdout).runs.length, 1);
+    assert.equal(run(["start", "--invocation", "cli"]).status, 1);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test("history materializes expired skill runs and reports their frozen scores", () => {
+  const f = fixture();
+  try {
+    const start = startAssessment(
+      f.state,
+      { invocation: "skill" },
+      Date.now() - 180000,
+    );
+    const row = listHistory(f.root).runs[0];
+    assert.equal(row.runId, start.runId);
+    assert.equal(row.status, "expired");
+    assert.equal(row.percent, 0);
+    assert.equal(row.elapsedSeconds, 120);
+    assert.equal(row.clockEnforcement, "answer-deadline");
+  } finally {
+    f.cleanup();
+  }
+});

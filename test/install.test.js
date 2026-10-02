@@ -12,7 +12,7 @@ const executable = fileURLToPath(
 const adapter = fileURLToPath(
   new URL("../src/skills-interactive.js", import.meta.url),
 );
-test("plain init leaves native agent, scope, method and confirmation choices interactive", () => {
+test("skill installer leaves native agent, scope, method and confirmation choices interactive", () => {
   const args = installerArguments({});
   assert.equal(args[0], "add");
   assert.equal(args[2], "--skill");
@@ -46,7 +46,7 @@ test("plain init leaves native agent, scope, method and confirmation choices int
     /either/,
   );
 });
-test("headless init without explicit yes leaves new and existing baselines unchanged", () => {
+test("headless skill installation without explicit yes leaves new and existing baselines unchanged", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "am-i-nerfed-headless-"));
   try {
     const project = path.join(root, "project"),
@@ -54,7 +54,7 @@ test("headless init without explicit yes leaves new and existing baselines uncha
     fs.mkdirSync(project);
     const env = { ...process.env, AM_I_NERFED_HOME: state };
     const call = (...args) =>
-      spawnSync(process.execPath, [executable, "init", ...args], {
+      spawnSync(process.execPath, [executable, "skill", "install", ...args], {
         cwd: project,
         env,
         encoding: "utf8",

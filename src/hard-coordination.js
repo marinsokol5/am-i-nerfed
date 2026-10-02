@@ -13,7 +13,6 @@ const numeric = (fraction) => {
   return n / d;
 };
 
-
 export function hardCoordination(seed) {
   const random = randomSource(seed);
   const histories = [

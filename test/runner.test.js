@@ -1,0 +1,170 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import {
+  supervise,
+  nativeCommand,
+  cleanEnvironment,
+  permittedCommand,
+  runAssessment,
+} from "../src/runner.js";
+
+test("transport audit permits literal answers and rejects command execution hidden in shell syntax", () => {
+  for (const command of [
+    "./assessment start",
+    "./assessment question --task medium-1",
+    `./assessment answer --task hard-5 --json '{"coordination":{"base":"3/2"}}'`,
+    `/bin/zsh -lc './assessment status'`,
+    `./assessment answer --task easy-1 --json "{\\"knowledge\\":{}}"`,
+  ])
+    assert.equal(permittedCommand(command), true, command);
+  for (const command of [
+    "cat private.json",
+    "./assessment status; python3 solve.py",
+    "./assessment status | cat",
+    "./assessment status > dump",
+    './assessment answer --task easy-1 --json "$(cat secret)"',
+    "./assessment start extra",
+    "./assessment question --task hard-6",
+    "./assessment answer --task hard-1 --json nope",
+  ])
+    assert.equal(permittedCommand(command), false, command);
+});
+test("both adapters preserve native system prompts and exclude inherited custom settings", () => {
+  for (const agent of ["claude", "codex"]) {
+    const command = nativeCommand(agent, {
+      model: "test",
+      effort: "medium",
+      state: "/tmp/state",
+      work: "/tmp/work",
+    });
+    assert.ok(!command.includes("--system-prompt"));
+    assert.ok(!command.some((s) => s.includes("model_instructions_file")));
+    const env = cleanEnvironment(agent, {
+      HOME: "/home/test",
+      PATH: "/bin",
+      ANTHROPIC_API_KEY: "excluded",
+      OPENAI_API_KEY: "excluded",
+      CLAUDE_CODE_EFFORT_LEVEL: "max",
+    });
+    assert.equal(env.HOME, "/home/test");
+    assert.equal(env.ANTHROPIC_API_KEY, undefined);
+    assert.equal(env.OPENAI_API_KEY, undefined);
+    assert.equal(env.CLAUDE_CODE_EFFORT_LEVEL, undefined);
+  }
+});
+test("watchdog kills a stubborn parent and child process near the deadline", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nerfed-watchdog-")),
+    pidFile = path.join(dir, "child.pid");
+  const script = `const fs=require('node:fs');const cp=require('node:child_process');process.on('SIGTERM',()=>{});const child=cp.spawn(process.execPath,['-e',"process.on('SIGTERM',()=>{});setInterval(()=>{},1000)"],{stdio:'ignore'});fs.writeFileSync(${JSON.stringify(pidFile)},String(child.pid));setInterval(()=>{},1000);`;
+  const began = Date.now();
+  try {
+    const result = await supervise(process.execPath, ["-e", script], {
+      cwd: dir,
+      env: process.env,
+      prompt: "test",
+      deadline: () => began + 500,
+    });
+    assert.equal(result.reason, "deadline");
+    assert.ok(Date.now() - began < 2500);
+    const pid = Number(fs.readFileSync(pidFile, "utf8"));
+    await new Promise((r) => setTimeout(r, 100));
+    const ps = spawnSync("ps", ["-o", "stat=", "-p", String(pid)], {
+      encoding: "utf8",
+    });
+    assert.ok(
+      ps.status !== 0 || !ps.stdout.trim() || ps.stdout.trim().startsWith("Z"),
+      `Child still running: ${ps.stdout}`,
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+test("first completed turn ends immediately with no follow-up or renewed process", async () => {
+  const result = await supervise(
+    process.execPath,
+    [
+      "-e",
+      `console.log(JSON.stringify({type:'turn.completed',usage:{output_tokens:3}}));setInterval(()=>{},1000)`,
+    ],
+    {
+      cwd: os.tmpdir(),
+      env: process.env,
+      prompt: "one input",
+      deadline: () => Date.now() + 10000,
+    },
+  );
+  assert.equal(result.reason, "finished");
+  assert.equal(result.usage.output_tokens, 3);
+  assert.ok(result.wallSeconds < 2);
+});
+test("client failure and forbidden tool calls invalidate an attempt", async () => {
+  for (const event of [
+    { type: "result", is_error: true },
+    {
+      type: "item.started",
+      item: { type: "command_execution", command: "python3 solver.py" },
+    },
+  ]) {
+    const result = await supervise(
+      process.execPath,
+      [
+        "-e",
+        `console.log(${JSON.stringify(JSON.stringify(event))});setInterval(()=>{},1000)`,
+      ],
+      {
+        cwd: os.tmpdir(),
+        env: process.env,
+        prompt: "x",
+        deadline: () => Date.now() + 10000,
+      },
+    );
+    assert.equal(result.reason, "failed");
+    assert.ok(result.failure);
+  }
+});
+test("packaged runner and transport complete a real five-task lifecycle using a fake native client", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nerfed-native-")),
+    bin = path.join(dir, "bin"),
+    state = path.join(dir, "state");
+  fs.mkdirSync(bin);
+  fs.mkdirSync(path.join(dir, "project"));
+  const executable = fileURLToPath(
+    new URL("../bin/am-i-nerfed.js", import.meta.url),
+  );
+  const init = spawnSync(process.execPath, [executable, "init"], {
+    cwd: path.join(dir, "project"),
+    env: { ...process.env, AM_I_NERFED_HOME: state },
+    encoding: "utf8",
+  });
+  assert.equal(init.status, 0, init.stderr);
+  const fake = `#!${process.execPath}\nconst cp=require('node:child_process');if(process.argv.includes('--version')){console.log('fake-cli-test');process.exit(0);}process.stdin.resume();process.stdin.on('end',()=>{const call=(args)=>{const r=cp.spawnSync('./assessment',args,{encoding:'utf8'});if(r.status)throw Error(r.stderr);return JSON.parse(r.stdout)};const run=call(['start']);for(const t of run.tasks){call(['question','--task',t.id]);call(['answer','--task',t.id,'--json','null']);}call(['finish']);console.log(JSON.stringify({type:'turn.completed',usage:{output_tokens:1}}));});\n`;
+  fs.writeFileSync(path.join(bin, "codex"), fake, { mode: 0o700 });
+  const oldPath = process.env.PATH,
+    oldState = process.env.AM_I_NERFED_HOME;
+  process.env.PATH = bin + path.delimiter + oldPath;
+  process.env.AM_I_NERFED_HOME = state;
+  try {
+    const result = await runAssessment({
+      agent: "codex",
+      model: "fake-model",
+      difficulty: "easy",
+    });
+    assert.equal(result.status, "finished");
+    assert.equal(result.result.tasks.length, 5);
+    assert.equal(result.result.percent, 0);
+    assert.equal(result.invocation, "cli");
+    assert.equal(result.clockEnforcement, "process-watchdog");
+    assert.equal(result.execution.failure, null);
+    assert.equal(fs.existsSync(path.join(state, ".lock")), false);
+  } finally {
+    process.env.PATH = oldPath;
+    if (oldState === undefined) delete process.env.AM_I_NERFED_HOME;
+    else process.env.AM_I_NERFED_HOME = oldState;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

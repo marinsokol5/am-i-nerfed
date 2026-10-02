@@ -1,7 +1,7 @@
 node_modules/
 *.tgz
 
-# Generated benchmark instances, private keys, submissions and run artifacts.
+# Local research, prototypes, generated instances, private keys and run artifacts.
 lab/
 experiments/
 research/

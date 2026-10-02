@@ -1,0 +1,328 @@
+import fs from "node:fs";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
+import { generateTaskBank, hash, LEVELS } from "./task-bank.js";
+import { privateDirectory, readJSON, writeJSON } from "./storage.js";
+import { grade } from "./grading.js";
+
+export const PROTOCOL_VERSION = 1;
+export const appVersion = () =>
+  readJSON(new URL("../package.json", import.meta.url)).version;
+export function prepareBank(state) {
+  const file = path.join(state.base, "task-bank.json");
+  if (!fs.existsSync(file))
+    writeJSON(file, generateTaskBank(state.dataset.seed), { exclusive: true });
+  return readBank(state);
+}
+function readBank(state) {
+  const bank = readJSON(path.join(state.base, "task-bank.json"));
+  if (
+    !Number.isInteger(bank.taskBankVersion) ||
+    bank.tasks?.length !== 15 ||
+    new Set(bank.tasks.map((t) => t.id)).size !== 15 ||
+    LEVELS.some(
+      (level) => bank.tasks.filter((t) => t.difficulty === level).length !== 5,
+    )
+  )
+    throw Error("Invalid frozen task bank");
+  return bank;
+}
+export function assessmentPath(state, id) {
+  if (typeof id !== "string" || !/^[0-9a-f]{8}-[0-9a-f-]{27}$/.test(id))
+    throw Error("A valid --run ID is required");
+  return path.join(state.base, "assessments", id + ".json");
+}
+export function isAssessment(state, id) {
+  return fs.existsSync(assessmentPath(state, id));
+}
+const publicBankHash = (bank) =>
+  hash({
+    version: bank.taskBankVersion,
+    tasks: bank.tasks.map(({ id, promptHash, difficulty, family }) => ({
+      id,
+      promptHash,
+      difficulty,
+      family,
+    })),
+  });
+function clock(record, now) {
+  const end = record.finishedAt
+    ? Date.parse(record.finishedAt)
+    : Math.min(now, Date.parse(record.deadlineAt));
+  return {
+    startedAt: record.startedAt,
+    deadlineAt: record.deadlineAt,
+    durationSeconds: record.durationSeconds,
+    elapsedSeconds: Math.max(
+      0,
+      Math.floor((end - Date.parse(record.startedAt)) / 1000),
+    ),
+    remainingSeconds:
+      record.status === "active"
+        ? Math.max(0, Math.ceil((Date.parse(record.deadlineAt) - now) / 1000))
+        : 0,
+  };
+}
+function filled(value) {
+  return value == null
+    ? 0
+    : typeof value === "object"
+      ? Object.values(value).reduce((n, v) => n + filled(v), 0)
+      : 1;
+}
+function view(record, now) {
+  return {
+    runId: record.id,
+    baselineId: record.baselineId,
+    appVersion: record.appVersion,
+    taskBankVersion: record.taskBankVersion,
+    protocolVersion: record.protocolVersion,
+    bankHash: record.publicBankHash,
+    difficulty: record.difficulty,
+    invocation: record.invocation,
+    agent: record.agent,
+    provider: record.provider,
+    model: record.model,
+    effort: record.effort,
+    metadataSource: record.metadataSource,
+    clockEnforcement: record.clockEnforcement,
+    status: record.status,
+    clock: clock(record, now),
+    tasks: record.tasks.map((t) => ({
+      ...t,
+      saved: Object.hasOwn(record.drafts, t.id),
+      filledFields: filled(record.drafts[t.id]),
+    })),
+  };
+}
+export function startAssessment(state, opts = {}, now) {
+  const difficulty = opts.difficulty ?? "medium",
+    durationSeconds = opts.seconds ?? 120;
+  if (!LEVELS.includes(difficulty))
+    throw Error("Choose difficulty easy, medium, or hard");
+  if (![120, 300].includes(durationSeconds))
+    throw Error("Choose a 120 or 300 second allowance");
+  if (!["cli", "skill", "manual"].includes(opts.invocation ?? "manual"))
+    throw Error("Invalid invocation method");
+  const bank = prepareBank(state);
+  now ??= Date.now();
+  const tasks = bank.tasks.filter((t) => t.difficulty === difficulty);
+  const record = {
+    id: randomUUID(),
+    baselineId: state.current.baselineId,
+    appVersion: appVersion(),
+    taskBankVersion: bank.taskBankVersion,
+    protocolVersion: PROTOCOL_VERSION,
+    privateBankHash: hash(bank),
+    publicBankHash: publicBankHash(bank),
+    difficulty,
+    durationSeconds,
+    invocation: opts.invocation ?? "manual",
+    agent: opts.agent ?? null,
+    provider: opts.provider ?? null,
+    model: opts.model ?? null,
+    effort: opts.effort ?? null,
+    metadataSource: opts.invocation === "cli" ? "configured" : "self-reported",
+    clockEnforcement:
+      opts.invocation === "cli" ? "process-watchdog" : "answer-deadline",
+    startedAt: new Date(now).toISOString(),
+    deadlineAt: new Date(now + durationSeconds * 1000).toISOString(),
+    status: "active",
+    drafts: {},
+    tasks: tasks.map(({ id, family, promptHash }) => ({
+      id,
+      family,
+      promptHash,
+    })),
+  };
+  privateDirectory(path.join(state.base, "assessments"));
+  writeJSON(assessmentPath(state, record.id), record, { exclusive: true });
+  return view(record, now);
+}
+export function assessmentAction(state, action, opts, time = Date.now) {
+  if (!["question", "answer", "status", "finish"].includes(action))
+    throw Error("Unknown assessment action");
+  const file = assessmentPath(state, opts.runId);
+  let record;
+  try {
+    record = readJSON(file);
+  } catch (e) {
+    if (e.code === "ENOENT")
+      throw Error(
+        "Run ID not found on the current baseline; retain the original ID and do not reset.",
+      );
+    throw e;
+  }
+  if (
+    record.id !== opts.runId ||
+    record.baselineId !== state.current.baselineId
+  )
+    throw Error("Run does not belong to this baseline");
+  const closed = (receipt) =>
+    action === "answer"
+      ? {
+          ...receipt,
+          accepted: false,
+          reason: "Run is closed; answer unchanged.",
+        }
+      : receipt;
+  if (record.receipt) return closed(record.receipt);
+  const bank = readBank(state);
+  if (hash(bank) !== record.privateBankHash)
+    throw Error("Frozen task bank changed; this run cannot be scored");
+  const task = bank.tasks.find(
+    (t) => t.id === opts.taskId && record.tasks.some((x) => x.id === t.id),
+  );
+  if (["question", "answer"].includes(action) && !task)
+    throw Error("Choose a task ID from this run");
+  if (action === "answer" && opts.patch === undefined)
+    throw Error("An answer needs JSON");
+  const close = (now, expired) => {
+    record.status = expired ? "expired" : "finished";
+    record.finishedAt = expired
+      ? record.deadlineAt
+      : new Date(now).toISOString();
+    const tasks = record.tasks.map((t) => ({
+      id: t.id,
+      family: t.family,
+      ...grade(
+        bank.tasks.find((q) => q.id === t.id).answer,
+        record.drafts[t.id] ?? null,
+      ),
+    }));
+    record.receipt = {
+      ...view(record, now),
+      finishedAt: record.finishedAt,
+      result: {
+        percent: tasks.reduce((sum, t) => sum + t.percent, 0) / tasks.length,
+        taskWeightPercent: 20,
+        tasks,
+      },
+    };
+    writeJSON(file, record);
+    return record.receipt;
+  };
+  let now = time();
+  if (now >= Date.parse(record.deadlineAt)) return closed(close(now, true));
+  if (action === "finish") return close(now, false);
+  if (action === "status") return view(record, now);
+  if (action === "question")
+    return {
+      ...view(record, now),
+      taskId: task.id,
+      prompt: task.prompt,
+      draft: record.drafts[task.id] ?? null,
+    };
+  const drafts = {
+    ...record.drafts,
+    [task.id]: mergeDraft(record.drafts[task.id], opts.patch),
+  };
+  if (Buffer.byteLength(JSON.stringify(drafts)) > 1048576)
+    throw Error("Answers exceed 1 MiB");
+  now = time();
+  if (now >= Date.parse(record.deadlineAt)) return closed(close(now, true));
+  record.drafts = drafts;
+  record.revision = (record.revision ?? 0) + 1;
+  writeJSON(file, record);
+  return {
+    ...view(record, now),
+    accepted: true,
+    taskId: task.id,
+    revision: record.revision,
+  };
+}
+// Runner metadata is outside solver-controlled answers. Failure removes the
+// score from history instead of masquerading as a reasoning failure.
+export function annotateAssessment(state, id, metadata) {
+  const file = assessmentPath(state, id),
+    record = readJSON(file);
+  record.execution = metadata;
+  if (metadata.failure) {
+    record.status = "failed";
+    record.finishedAt ??= new Date().toISOString();
+    record.receipt = { ...view(record, Date.now()), failure: metadata.failure };
+  }
+  writeJSON(file, record);
+  return { ...record.receipt, execution: metadata };
+}
+export function listHistory(root, filters = {}) {
+  const directory = path.join(root, "baselines"),
+    runs = [];
+  if (!fs.existsSync(directory)) return { runs };
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    if (!entry.isDirectory() || !/^[0-9a-f-]{36}$/.test(entry.name)) continue;
+    const base = path.join(directory, entry.name),
+      dir = path.join(base, "assessments");
+    if (!fs.existsSync(dir)) continue;
+    for (const name of fs
+      .readdirSync(dir)
+      .filter((n) => /^[0-9a-f-]{36}\.json$/.test(n))) {
+      let record = readJSON(path.join(dir, name));
+      if (
+        record.status === "active" &&
+        Date.now() >= Date.parse(record.deadlineAt)
+      ) {
+        assessmentAction(
+          { base, current: { baselineId: entry.name } },
+          "status",
+          { runId: record.id },
+        );
+        record = readJSON(path.join(dir, name));
+      }
+      const row = {
+        runId: record.id,
+        baselineId: record.baselineId,
+        startedAt: record.startedAt,
+        finishedAt: record.finishedAt ?? null,
+        appVersion: record.appVersion,
+        taskBankVersion: record.taskBankVersion,
+        protocolVersion: record.protocolVersion,
+        bankHash: record.publicBankHash,
+        invocation: record.invocation,
+        agent: record.agent,
+        provider: record.provider,
+        model: record.model,
+        effort: record.effort,
+        metadataSource: record.metadataSource,
+        clockEnforcement: record.clockEnforcement,
+        difficulty: record.difficulty,
+        durationSeconds: record.durationSeconds,
+        status: record.status,
+        percent: record.receipt?.result?.percent ?? null,
+        elapsedSeconds: clock(record, Date.now()).elapsedSeconds,
+        execution: record.execution ?? null,
+      };
+      if (
+        Object.entries(filters).every(
+          ([key, value]) => value == null || String(row[key]) === String(value),
+        )
+      )
+        runs.push(row);
+    }
+  }
+  runs.sort(
+    (a, b) =>
+      b.startedAt.localeCompare(a.startedAt) || a.runId.localeCompare(b.runId),
+  );
+  return {
+    runs,
+    note: "Compare the same bank, difficulty, duration, invocation method, protocol, model and effort. CLI and skill runs retain separate context.",
+  };
+}
+
+const isObject = (value) =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+export function mergeDraft(previous, patch) {
+  if (!isObject(patch)) return patch;
+  const old = isObject(previous) ? previous : {};
+  // fromEntries defines own properties, including __proto__, without setters.
+  const keys = new Set([...Object.keys(old), ...Object.keys(patch)]);
+  return Object.fromEntries(
+    [...keys].map((key) => [
+      key,
+      Object.hasOwn(patch, key)
+        ? mergeDraft(Object.hasOwn(old, key) ? old[key] : undefined, patch[key])
+        : old[key],
+    ]),
+  );
+}
