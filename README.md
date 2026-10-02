@@ -117,6 +117,40 @@ Each run records the package version, task-bank version, bank fingerprint, proto
 
 Private state defaults to `~/.local/state/am-i-nerfed`. `AM_I_NERFED_HOME` can select a dedicated directory outside projects and Git repositories. Keys and saved drafts stay in owner-only files; the solver receives only questions and its own drafts. This prevents accidental sharing, not access by the same OS user. No benchmark results are sent to a separate service.
 
+## Exploratory benchmark
+
+One scored iteration per model × difficulty × time allowance: easy, medium and hard, each at 60, 120 and 300 seconds. Every run uses five tasks from the same frozen 15-task bank. Models are sorted by the arithmetic mean of all nine equally weighted scores, highest first; no best-run selection. Early finishes are final, with no reminders. Allowances include client startup, question retrieval and answer submission; only answers saved before the deadline count. **One iteration is not representative:** this exploratory table does not establish a reliable model ranking.
+
+| Rank | Model ID | Mean score | Runs | Am I nerfed version | Test date (Europe/Amsterdam) |
+|---:|---|---:|---:|---|---|
+| 1 | `claude-opus-5-5` | 83.55%‡ | 9/9 | 0.5.3 | 2026-10-02 |
+| 2 | `gpt-6.1-sol` | 77.09% | 9/9 | 0.5.3 | 2026-10-02 |
+| 3 | `claude-sonnet-5-5` | 75.07% | 9/9 | 0.5.4, 0.5.5 | 2026-10-02–2026-10-03 |
+| 4 | `gpt-6-astra` | 74.53% | 9/9 | 0.5.2, 0.5.3 | 2026-10-02 |
+| 5 | `gpt-6-sol` | 65.97% | 9/9 | 0.5.2, 0.5.3 | 2026-10-02 |
+| 6 | `gpt-5.6-terra` | 59.68%† | 9/9 | 0.5.3 | 2026-10-02 |
+| 7 | `claude-opus-5` | 58.14% | 9/9 | 0.5.4, 0.5.5 | 2026-10-03 |
+| 8 | `gpt-6-luna` | 43.11%† | 9/9 | 0.5.2, 0.5.3 | 2026-10-02 |
+| 9 | `claude-sonnet-5` | 22.65% | 9/9 | 0.5.4, 0.5.5 | 2026-10-02–2026-10-03 |
+
+**Separate effort cohort.** Haiku 4.5 was requested at medium, but this model does not support that effort setting. Native request evidence shows enabled thinking with an unknown token budget; effective effort is unknown. Its scores are reported separately and excluded from the ranking above.
+
+| Model ID | Mean score | Runs | Am I nerfed version | Test date (Europe/Amsterdam) |
+|---|---:|---:|---|---|
+| `claude-haiku-4-5-20251001` | 10.63% | 9/9 | 0.5.4, 0.5.5 | 2026-10-03 |
+
+Fresh native Codex and Claude Code sessions excluded personal/project instructions. Ranked models have verified medium effort; provider system prompts and tools still differ, and matching effort labels do not guarantee equal computation. Test dates use Europe/Amsterdam, and each row lists the actual application versions used.
+
+Am I nerfed **0.5.2–0.5.5** was tested with an unchanged bank, grading and time limits. Version 0.5.4 added an optional invitation to challenge assumptions or double-check with remaining time. Versions 0.5.3 and 0.5.5 made malformed answer JSON and missing final quotes recoverable transport errors, respectively. The instruction change and different native clients prevent a controlled comparison of models alone.
+
+One Sonnet 5.5 medium/60-second attempt was excluded **without a score** after the harness incorrectly aborted a missing-quote error at 28 seconds. Only that cell was repeated after the 0.5.5 fix; all seven completed 0.5.4 runs were retained.
+
+Native CLI versions tested: Codex 0.160.0; Claude Code 2.1.287. Task-bank version **1**, protocol version **1**.
+
+† Delivery issues: GPT-6 Luna medium/120s (2 incomplete question outputs; 2 not fully retrieved later); GPT-5.6 Terra hard/120s (1 incomplete question output; 1 not fully retrieved later). Scores are preserved and include retrieval errors as well as reasoning.
+
+‡ Opus 5.5’s hard/60-second result was recovered from its original saved receipt after a cleanup error. It was not rerun; its exact process-stop timestamp is unavailable.
+
 ## Development
 
 ```bash
