@@ -153,11 +153,13 @@ test("packaged runner and transport complete a real five-task lifecycle using a 
       agent: "codex",
       model: "fake-model",
       difficulty: "easy",
+      seconds: 200,
     });
     assert.equal(result.status, "finished");
     assert.equal(result.result.tasks.length, 5);
     assert.equal(result.result.percent, 0);
     assert.equal(result.invocation, "cli");
+    assert.equal(result.clock.durationSeconds, 200);
     assert.equal(result.clockEnforcement, "process-watchdog");
     assert.equal(result.execution.failure, null);
     assert.equal(fs.existsSync(path.join(state, ".lock")), false);

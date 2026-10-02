@@ -2,12 +2,12 @@
 name: am-i-nerfed
 description: Run a private timed reasoning assessment using the current agent and conversation context. Use when the user asks to run Am I nerfed or assess their current agent. Works wherever shell commands are available.
 metadata:
-  version: "0.5.0"
+  version: "0.5.1"
 ---
 
 Assess yourself using the current model, reasoning effort, instructions, and conversation. Do not launch a fresh model, use a subagent, or call `am-i-nerfed run`. That command is the separate clean CLI mode.
 
-Accept difficulty `easy`, `medium`, or `hard` (default `medium`) and an optional total allowance of `120` or `300` seconds (default `120`). These select the puzzle level and shared time budget, not your reasoning effort. Each run has five tasks. Reject invalid arguments before starting.
+Accept difficulty `easy`, `medium`, or `hard` (default `medium`) and an optional total allowance in positive whole seconds (default `120`; for example, `$am-i-nerfed medium 200` or `/am-i-nerfed medium 200`). These select the puzzle level and shared time budget, not your reasoning effort. Each run has five tasks. Reject invalid arguments before starting.
 
 A portable skill cannot interrupt its host model during reasoning. Briefly state that this is an in-context assessment with an enforced answer deadline, but no guaranteed computation cutoff. Do not promise a hard token budget or that your process will be killed. If the user requires a hard computation cutoff, explain that they need the supervised CLI mode and do not start an in-context attempt instead.
 

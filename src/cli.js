@@ -24,8 +24,8 @@ const help = `am-i-nerfed — private reasoning assessments
 
   init [--agent codex|claude] [--model MODEL] [--effort LEVEL]
   run [--agent codex|claude] [--model MODEL] [--effort LEVEL]
-      [--difficulty easy|medium|hard] [--seconds 120|300] [--json]
-  start [--difficulty easy|medium|hard] [--seconds 120|300]
+      [--difficulty easy|medium|hard] [--seconds N] [--json]
+  start [--difficulty easy|medium|hard] [--seconds N]
         [--invocation skill|manual] [--agent NAME] [--provider NAME]
         [--model MODEL] [--effort LEVEL]
   question --run ID --task ID

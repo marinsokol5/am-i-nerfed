@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { durationSeconds } from "./duration.js";
 import { spawn, spawnSync } from "node:child_process";
 import {
   withLock,
@@ -381,8 +382,7 @@ export async function runAssessment(options) {
     throw Error("Invalid reasoning effort");
   if (!["easy", "medium", "hard"].includes(options.difficulty ?? "medium"))
     throw Error("Invalid difficulty");
-  if (![120, 300].includes(options.seconds ?? 120))
-    throw Error("Choose --seconds 120 or 300");
+  const seconds = durationSeconds(options.seconds);
   const version = spawnSync(agent, ["--version"], {
     encoding: "utf8",
     timeout: 10000,
@@ -403,6 +403,7 @@ export async function runAssessment(options) {
     runFile = path.join(work, "run.json");
   const settings = {
     ...options,
+    seconds,
     agent,
     model,
     effort,

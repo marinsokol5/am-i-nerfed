@@ -39,7 +39,7 @@ am-i-nerfed run --difficulty hard --seconds 300
 am-i-nerfed doctor
 ```
 
-Defaults are **medium difficulty and 120 seconds**. The other allowance is 300 seconds. Difficulty selects questions; effort is the model's reasoning setting. There is no silent fallback to another model or effort. Returned metadata records settings as configured, plus any observed model/effort evidence exposed by the client. Equivalent effort names across providers do not guarantee equivalent computation.
+Defaults are **medium difficulty and 120 seconds**. Any positive whole number of seconds is accepted, for example `--seconds 200`. Difficulty selects questions; effort is the model's reasoning setting. There is no silent fallback to another model or effort. Returned metadata records settings as configured, plus any observed model/effort evidence exposed by the client. Equivalent effort names across providers do not guarantee equivalent computation.
 
 The supervised runner currently supports macOS and Linux. It invokes installed `codex` or `claude` executables directly and retains their native authentication locations. No credentials are read or copied by Am I nerfed. Native CLI versions must support the isolation and event-stream flags used by the adapters. Managed organizational policies still apply.
 
@@ -51,14 +51,14 @@ Only the assessment transport is allowed for solving runs; no code solving, brow
 
 ## Skill use
 
-Install the skill separately if you want the in-context mode:
+Install the skill through the bundled, pinned Agent Skills (`skills`) package if you want the in-context mode; this command delegates to its standard installer:
 
 ```bash
 am-i-nerfed skill install
 am-i-nerfed skill install --yes --global --agent codex
 ```
 
-Invoke `$am-i-nerfed medium` in Codex or `/am-i-nerfed medium` in Claude Code. The skill also accepts `easy`, `hard`, and a total time of `120` or `300` seconds. It runs the **current model directly**, without a fresh CLI solver or subagent. Existing instructions and prior conversation remain part of the measurement.
+Invoke `$am-i-nerfed medium` in Codex or `/am-i-nerfed medium` in Claude Code. The skill also accepts `easy`, `hard`, and any positive whole number of seconds, for example `$am-i-nerfed medium 200`. It runs the **current model directly**, without a fresh CLI solver or subagent. Existing instructions and prior conversation remain part of the measurement.
 
 The skill records `invocation: skill`, self-reported metadata where known, and `clockEnforcement: answer-deadline`. It checks time frequently and stops when the deadline is observed. **It cannot promise to kill ongoing reasoning at two minutes.** Use the supervised CLI when computation cutoff is required. Unknown model/effort values stay unknown.
 

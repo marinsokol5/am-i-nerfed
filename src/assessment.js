@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { generateTaskBank, hash, LEVELS } from "./task-bank.js";
 import { privateDirectory, readJSON, writeJSON } from "./storage.js";
 import { grade } from "./grading.js";
+import { durationSeconds as validateDuration } from "./duration.js";
 
 export const PROTOCOL_VERSION = 1;
 export const appVersion = () =>
@@ -97,11 +98,9 @@ function view(record, now) {
 }
 export function startAssessment(state, opts = {}, now) {
   const difficulty = opts.difficulty ?? "medium",
-    durationSeconds = opts.seconds ?? 120;
+    durationSeconds = validateDuration(opts.seconds, now);
   if (!LEVELS.includes(difficulty))
     throw Error("Choose difficulty easy, medium, or hard");
-  if (![120, 300].includes(durationSeconds))
-    throw Error("Choose a 120 or 300 second allowance");
   if (!["cli", "skill", "manual"].includes(opts.invocation ?? "manual"))
     throw Error("Invalid invocation method");
   const bank = prepareBank(state);

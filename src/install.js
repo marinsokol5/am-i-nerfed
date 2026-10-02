@@ -28,7 +28,7 @@ export async function installSkill(opts) {
   const args = installerArguments(opts);
   if (!opts["--yes"] && (!process.stdin.isTTY || !process.stdout.isTTY))
     throw Error(
-      "Interactive init requires a terminal. Run init there, or explicitly use --yes with --agent and --global/--project for headless installation. Initialization was not changed.",
+      "Interactive skill installation requires a terminal. Run skill install there, or explicitly use --yes with --agent and --global/--project for headless installation. Initialization was not changed.",
     );
   const executable = path.join(
     path.dirname(require.resolve("skills/package.json")),

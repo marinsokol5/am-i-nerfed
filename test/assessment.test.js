@@ -208,7 +208,11 @@ test("frozen bank integrity is checked and invalid levels cannot create an asses
       () => startAssessment(f.state, { difficulty: "normal" }),
       /difficulty/,
     );
-    assert.throws(() => startAssessment(f.state, { seconds: 60 }), /allowance/);
+    for (const seconds of [0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER])
+      assert.throws(
+        () => startAssessment(f.state, { seconds }),
+        /positive whole number/,
+      );
     assert.equal(fs.existsSync(path.join(f.state.base, "assessments")), false);
     const start = startAssessment(f.state);
     const changed = structuredClone(bank);
@@ -285,6 +289,49 @@ test("history materializes expired skill runs and reports their frozen scores", 
     assert.equal(row.percent, 0);
     assert.equal(row.elapsedSeconds, 120);
     assert.equal(row.clockEnforcement, "answer-deadline");
+  } finally {
+    f.cleanup();
+  }
+});
+
+test("arbitrary whole-second budgets retain their exact deadline and history identity", () => {
+  const f = fixture(),
+    now = Date.now();
+  try {
+    for (const seconds of [1, 60, 200, 777, 3000000]) {
+      const start = startAssessment(
+        f.state,
+        { seconds, invocation: "skill" },
+        now,
+      );
+      assert.equal(start.clock.durationSeconds, seconds);
+      assert.equal(Date.parse(start.clock.deadlineAt) - now, seconds * 1000);
+      const runId = start.runId,
+        taskId = start.tasks[0].id;
+      const answer = bank.tasks.find((t) => t.id === taskId).answer;
+      assert.equal(
+        assessmentAction(
+          f.state,
+          "answer",
+          { runId, taskId, patch: answer },
+          () => now + seconds * 1000 - 1,
+        ).accepted,
+        true,
+      );
+      const late = assessmentAction(
+        f.state,
+        "answer",
+        { runId, taskId, patch: null },
+        () => now + seconds * 1000,
+      );
+      assert.equal(late.accepted, false);
+      assert.equal(late.result.percent, 20);
+      assert.equal(late.clock.elapsedSeconds, seconds);
+      assert.equal(
+        listHistory(f.root, { durationSeconds: seconds }).runs.length,
+        1,
+      );
+    }
   } finally {
     f.cleanup();
   }
