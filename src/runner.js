@@ -123,7 +123,7 @@ export function cleanEnvironment(agent, source = process.env) {
 export function permittedCommand(command) {
   // Accept the quoted arguments generated for transport; never accept shell
   // evaluation, redirection, command chains or unrelated commands.
-  if (typeof command !== "string" || /[\n\r]/.test(command)) return false;
+  if (typeof command !== "string" || command.includes("\0")) return false;
   const tokens = [];
   let token = "",
     quote = null,
@@ -155,11 +155,13 @@ export function permittedCommand(command) {
       continue;
     }
     if (c === "\\") {
-      if (i + 1 >= command.length) return false;
+      if (i + 1 >= command.length || /[\n\r]/.test(command[i + 1]))
+        return false;
       token += command[++i];
       started = true;
       continue;
     }
+    if (/[\n\r]/.test(c)) return false;
     if (/\s/.test(c)) {
       if (started) {
         tokens.push(token);
@@ -192,12 +194,9 @@ export function permittedCommand(command) {
     return false;
   if (action === "question") return tokens.length === 2;
   if (tokens.length !== 4 || tokens[2] !== "--json") return false;
-  try {
-    JSON.parse(tokens[3]);
-    return true;
-  } catch {
-    return false;
-  }
+  // Payload validation belongs to the transport. Malformed JSON is a
+  // recoverable answer error, not evidence of a forbidden solver command.
+  return true;
 }
 
 // Exported for an OS-level test using a fake client and child process, without

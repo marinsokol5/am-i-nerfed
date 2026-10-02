@@ -58,6 +58,9 @@ test("transport audit permits literal answers and rejects command execution hidd
     `./assessment answer --task hard-5 --json '{"coordination":{"base":"3/2"}}'`,
     `/bin/zsh -lc './assessment status'`,
     `./assessment answer --task easy-1 --json "{\\"knowledge\\":{}}"`,
+    `./assessment answer --task medium-3 --json '{"knowledge":{}}}'`,
+    `./assessment answer --task hard-1 --json nope`,
+    `./assessment answer --task easy-1 --json '{\n"knowledge": {}\n}'`,
   ])
     assert.equal(permittedCommand(command), true, command);
   for (const command of [
@@ -68,7 +71,7 @@ test("transport audit permits literal answers and rejects command execution hidd
     './assessment answer --task easy-1 --json "$(cat secret)"',
     "./assessment start extra",
     "./assessment question --task hard-6",
-    "./assessment answer --task hard-1 --json nope",
+    "./assessment status\n./assessment finish",
   ])
     assert.equal(permittedCommand(command), false, command);
 });

@@ -2,7 +2,7 @@
 name: am-i-nerfed
 description: Run a private timed reasoning assessment using the current agent and conversation context. Use when the user asks to run Am I nerfed or assess their current agent. Works wherever shell commands are available.
 metadata:
-  version: "0.5.2"
+  version: "0.5.3"
 ---
 
 Assess yourself using the current model, reasoning effort, instructions, and conversation. Do not launch a fresh model, use a subagent, or call `am-i-nerfed run`. That command is the separate clean CLI mode.
