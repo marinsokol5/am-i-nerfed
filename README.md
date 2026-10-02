@@ -41,7 +41,7 @@ am-i-nerfed doctor
 
 Defaults are **medium difficulty and 120 seconds**. Any positive whole number of seconds is accepted, for example `--seconds 200`. Difficulty selects questions; effort is the model's reasoning setting. There is no silent fallback to another model or effort. Returned metadata records settings as configured, plus any observed model/effort evidence exposed by the client. Equivalent effort names across providers do not guarantee equivalent computation.
 
-The supervised runner currently supports macOS and Linux. It invokes installed `codex` or `claude` executables directly and retains their native authentication locations. No credentials are read or copied by Am I nerfed. Native CLI versions must support the isolation and event-stream flags used by the adapters. Managed organizational policies still apply.
+The supervised runner currently supports macOS and Linux. It invokes installed `codex` or `claude` executables directly and retains their native authentication locations. No credentials are read or copied by Am I nerfed. Codex assessments use an application-owned Codex home without personal instructions, linking only the existing `auth.json`; file-backed Codex login is currently required. Native CLI versions must support the isolation and event-stream flags used by the adapters. Managed organizational policies still apply.
 
 The clock starts at client launch, after local bank generation and version checks. Startup, reasoning, retrieval and answer submission all count. Every transport response includes the immutable deadline, elapsed seconds and remaining seconds. The model retrieves questions individually and can save partial work repeatedly. Early finishing, or ending the first turn, ends the assessment permanently: **no reminder or second attempt**.
 
@@ -76,7 +76,7 @@ am-i-nerfed finish --run RUN_ID
 
 Use the exact run/task IDs and answer schema returned by the CLI. `start` may include known `--agent`, `--provider`, `--model` and `--effort` metadata. `answer` also accepts JSON from stdin or `--file PATH`.
 
-Answers merge recursively: omitted object fields retain previous work, explicit null clears a field, and arrays/scalars replace. Partial answers and revisions are allowed until finish or deadline. No correctness feedback is returned while the run is active. Late submissions cannot alter saved answers. Repeated finish calls return the same receipt. There is no pause, extension, reset or retry within an attempt.
+Answers merge recursively: omitted object fields retain previous work, explicit null clears a field, and arrays/scalars replace. Partial answers and revisions are allowed until finish or deadline. No correctness feedback is returned while the run is active. Late submissions cannot alter saved answers. `finish` is optional: saved answers freeze at the deadline without it, and `status` then returns their score. Use `finish` only to deliberately end early; there is no need to reserve time for that command. Repeated finish calls return the same receipt. There is no pause, extension, reset or retry within an attempt.
 
 Transport commands emit JSON to stdout. `run` prints a short score summary and `history list` prints a table; add `--json` to either for structured output. Runner progress goes to stderr. Transport commands called directly enforce answer acceptance times only; they do not own or kill an external agent process.
 

@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { durationSeconds } from "./duration.js";
+import { codexEnvironment, codexEvidence } from "./codex-context.js";
 import { spawn, spawnSync } from "node:child_process";
 import {
   withLock,
@@ -74,6 +75,7 @@ export function nativeCommand(agent, opts) {
     "features.shell_snapshot": false,
   };
   return [
+    "--no-daemon",
     "exec",
     "--json",
     "--ignore-user-config",
@@ -224,6 +226,7 @@ export async function supervise(
     buffer = "",
     usage = null,
     terminal = false,
+    threadId = null,
     killTimer,
     stoppedAt;
   const observedModels = new Set(),
@@ -278,6 +281,7 @@ export async function supervise(
       } catch {
         continue;
       }
+      if (e.type === "thread.started") threadId = e.thread_id;
       if (typeof e.model === "string") observedModels.add(e.model);
       if (typeof e.message?.model === "string")
         observedModels.add(e.message.model);
@@ -349,6 +353,7 @@ export async function supervise(
     failure,
     usage,
     terminal,
+    threadId,
     stoppedAt: stoppedAt ?? Date.now(),
     observedModels: [...observedModels],
     observedEfforts: [...observedEfforts],
@@ -396,6 +401,10 @@ export async function runAssessment(options) {
     prepareBank(active(root));
     return root;
   });
+  const childEnv =
+    agent === "codex"
+      ? codexEnvironment(state, cleanEnvironment(agent))
+      : cleanEnvironment(agent);
   const work = fs.mkdtempSync(path.join(os.tmpdir(), "am-i-nerfed-run-"));
   privateDirectory(work);
   const events = path.join(work, "events.jsonl"),
@@ -451,9 +460,24 @@ export async function runAssessment(options) {
     execution = await supervise(
       agent,
       nativeCommand(agent, { ...settings, work, state }),
-      { cwd: work, env: cleanEnvironment(agent), prompt, deadline, isFinished },
+      { cwd: work, env: childEnv, prompt, deadline, isFinished },
     );
     execution.clientVersion = version.stdout.trim();
+    if (agent === "codex") {
+      execution.nativeEvidence = codexEvidence(
+        childEnv.CODEX_HOME,
+        execution.threadId,
+        launchedAt,
+      );
+      if (execution.nativeEvidence?.instructionFileMessages)
+        execution.failure =
+          "Personal or project instruction files were loaded into the clean assessment";
+      if (execution.nativeEvidence?.efforts.some((value) => value !== effort))
+        execution.failure =
+          "Native session recorded a different reasoning effort";
+      if (execution.nativeEvidence?.models.some((value) => value !== model))
+        execution.failure = "Native session recorded a different model";
+    }
     if (execution.observedEfforts.some((value) => value !== effort))
       execution.failure = "Client reported a different reasoning effort";
     if (!fs.existsSync(runFile)) {

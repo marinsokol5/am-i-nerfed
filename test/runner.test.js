@@ -12,6 +12,44 @@ import {
   permittedCommand,
   runAssessment,
 } from "../src/runner.js";
+import { codexEnvironment, codexEvidence } from "../src/codex-context.js";
+
+test("Codex assessment home excludes personal instructions and shares auth without copying it", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nerfed-codex-context-"));
+  try {
+    const source = path.join(root, "source");
+    fs.mkdirSync(source);
+    fs.writeFileSync(path.join(source, "auth.json"), "synthetic-auth-fixture");
+    fs.writeFileSync(path.join(source, "AGENTS.md"), "personal marker");
+    fs.writeFileSync(path.join(source, "config.toml"), "personal config");
+    const env = codexEnvironment(path.join(root, "state"), {
+      CODEX_HOME: source,
+      PATH: "/bin",
+    });
+    assert.notEqual(env.CODEX_HOME, source);
+    assert.equal(fs.existsSync(path.join(env.CODEX_HOME, "AGENTS.md")), false);
+    assert.equal(
+      fs.existsSync(path.join(env.CODEX_HOME, "config.toml")),
+      false,
+    );
+    assert.equal(
+      fs.lstatSync(path.join(env.CODEX_HOME, "auth.json")).isSymbolicLink(),
+      true,
+    );
+    assert.equal(
+      fs.realpathSync(path.join(env.CODEX_HOME, "auth.json")),
+      fs.realpathSync(path.join(source, "auth.json")),
+    );
+    assert.equal(
+      codexEnvironment(path.join(root, "state"), { CODEX_HOME: source })
+        .CODEX_HOME,
+      env.CODEX_HOME,
+    );
+    assert.equal(codexEvidence(env.CODEX_HOME, null, Date.now()), null);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test("transport audit permits literal answers and rejects command execution hidden in shell syntax", () => {
   for (const command of [
@@ -145,7 +183,12 @@ test("packaged runner and transport complete a real five-task lifecycle using a 
   const fake = `#!${process.execPath}\nconst cp=require('node:child_process');if(process.argv.includes('--version')){console.log('fake-cli-test');process.exit(0);}process.stdin.resume();process.stdin.on('end',()=>{const call=(args)=>{const r=cp.spawnSync('./assessment',args,{encoding:'utf8'});if(r.status)throw Error(r.stderr);return JSON.parse(r.stdout)};const run=call(['start']);for(const t of run.tasks){call(['question','--task',t.id]);call(['answer','--task',t.id,'--json','null']);}call(['finish']);console.log(JSON.stringify({type:'turn.completed',usage:{output_tokens:1}}));});\n`;
   fs.writeFileSync(path.join(bin, "codex"), fake, { mode: 0o700 });
   const oldPath = process.env.PATH,
-    oldState = process.env.AM_I_NERFED_HOME;
+    oldState = process.env.AM_I_NERFED_HOME,
+    oldCodexHome = process.env.CODEX_HOME;
+  const fakeHome = path.join(dir, "native-home");
+  fs.mkdirSync(fakeHome);
+  fs.writeFileSync(path.join(fakeHome, "auth.json"), "synthetic-auth-fixture");
+  process.env.CODEX_HOME = fakeHome;
   process.env.PATH = bin + path.delimiter + oldPath;
   process.env.AM_I_NERFED_HOME = state;
   try {
@@ -167,6 +210,8 @@ test("packaged runner and transport complete a real five-task lifecycle using a 
     process.env.PATH = oldPath;
     if (oldState === undefined) delete process.env.AM_I_NERFED_HOME;
     else process.env.AM_I_NERFED_HOME = oldState;
+    if (oldCodexHome === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = oldCodexHome;
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });

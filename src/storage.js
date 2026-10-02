@@ -34,7 +34,13 @@ export function stateRoot() {
     const st = fs.lstatSync(root);
     if (!st.isDirectory() || st.isSymbolicLink())
       throw Error("Private state directory must be a real directory");
-    const allowed = new Set(["current.json", "baselines", ".lock", "settings.json"]);
+    const allowed = new Set([
+      "current.json",
+      "baselines",
+      ".lock",
+      "settings.json",
+      "clients",
+    ]);
     if (
       fs
         .readdirSync(root)
