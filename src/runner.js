@@ -19,7 +19,7 @@ import {
   annotateAssessment,
 } from "./assessment.js";
 
-export const EXAM_INSTRUCTIONS = `Take this private reasoning assessment yourself. Only the supplied assessment commands may be used. Do not calculate with code, browse, read files, inspect the transport, consult prior answers or delegate. Retrieve each task individually. Save partial answers as soon as useful, then continue or revise; omitted fields preserve earlier work and null clears a field. All five tasks count equally. Clock feedback arrives with every command. Use the available time to solve and check your answers. You may finish early when satisfied; ending your turn also ends the assessment. There are no reminders or second chances. Only saved answers count; no correctness feedback is available before closing the run.`;
+export const EXAM_INSTRUCTIONS = `Take this private reasoning assessment yourself. Only the supplied assessment commands may be used. Do not calculate with code, browse, read files, inspect the transport, consult prior answers or delegate. Retrieve each task individually. Save partial answers as soon as useful, then continue or revise; omitted fields preserve earlier work and null clears a field. All five tasks count equally. Clock feedback arrives with every command. If you have answers for all five tasks with time remaining, feel free to challenge your assumptions or double-check your answers. You do not need to stop before time runs out. You may finish early when satisfied; ending your turn also ends the assessment. There are no reminders or second chances. Only saved answers count; no correctness feedback is available before closing the run.`;
 
 export function nativeCommand(agent, opts) {
   if (agent === "claude")
@@ -174,7 +174,21 @@ export function permittedCommand(command) {
     token += c;
     started = true;
   }
-  if (quote) return false;
+  // A missing closing quote in the final literal answer argument is a shell
+  // syntax error, not an extra command. Let the shell report it so the solver
+  // can correct its transport syntax within the original time allowance.
+  if (
+    quote &&
+    !(
+      tokens.length === 5 &&
+      tokens[0] === "./assessment" &&
+      tokens[1] === "answer" &&
+      tokens[2] === "--task" &&
+      /^(easy|medium|hard)-[1-5]$/.test(tokens[3]) &&
+      tokens[4] === "--json"
+    )
+  )
+    return false;
   if (started) tokens.push(token);
   if (
     tokens.length === 3 &&
@@ -344,12 +358,20 @@ export async function supervise(
     await new Promise((r) => setTimeout(r, 210));
     clearTimeout(killTimer);
   }
-  signalGroup(child, "SIGKILL");
+  let cleanupFailure = null;
+  try {
+    signalGroup(child, "SIGKILL");
+  } catch (error) {
+    // The leader has closed and the scheduled cutoff has already run. Keep
+    // the saved assessment and timing evidence even if final cleanup fails.
+    cleanupFailure = error.message;
+  }
   if (reason === "cancelled") failure = "Cancelled by user";
   return {
     ...result,
     reason,
     failure,
+    cleanupFailure,
     usage,
     terminal,
     threadId,

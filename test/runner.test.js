@@ -59,6 +59,8 @@ test("transport audit permits literal answers and rejects command execution hidd
     `/bin/zsh -lc './assessment status'`,
     `./assessment answer --task easy-1 --json "{\\"knowledge\\":{}}"`,
     `./assessment answer --task medium-3 --json '{"knowledge":{}}}'`,
+    `./assessment answer --task medium-3 --json '{"knowledge":{}}`,
+    './assessment answer --task medium-3 --json "nope',
     `./assessment answer --task hard-1 --json nope`,
     `./assessment answer --task easy-1 --json '{\n"knowledge": {}\n}'`,
   ])
@@ -72,6 +74,9 @@ test("transport audit permits literal answers and rejects command execution hidd
     "./assessment start extra",
     "./assessment question --task hard-6",
     "./assessment status\n./assessment finish",
+    "./assessment status '",
+    "./assessment answer --task medium-3 --json 'null' extra '",
+    './assessment answer --task medium-3 --json "$(cat secret)',
   ])
     assert.equal(permittedCommand(command), false, command);
 });
@@ -166,6 +171,31 @@ test("client failure and forbidden tool calls invalidate an attempt", async () =
     );
     assert.equal(result.reason, "failed");
     assert.ok(result.failure);
+  }
+});
+test("post-close cleanup failure preserves completed execution metadata", async (t) => {
+  const originalKill = process.kill.bind(process);
+  let kills = 0;
+  const mock = t.mock.method(process, "kill", (pid, signal) => {
+    if (pid < 0 && signal === "SIGKILL" && ++kills === 2) {
+      throw Object.assign(new Error("kill EPERM"), { code: "EPERM" });
+    }
+    return originalKill(pid, signal);
+  });
+  try {
+    const result = await supervise(process.execPath, ["-e",
+      `console.log(JSON.stringify({type:'turn.completed'}));setInterval(()=>{},1000);`,
+    ], {
+      cwd: os.tmpdir(), env: process.env, prompt: "x",
+      deadline: () => Date.now() + 10000,
+    });
+    assert.equal(result.reason, "finished");
+    assert.equal(result.failure, null);
+    assert.equal(result.cleanupFailure, "kill EPERM");
+    assert.equal(result.terminal, true);
+    assert.ok(Number.isFinite(result.stoppedAt));
+  } finally {
+    mock.mock.restore();
   }
 });
 test("packaged runner and transport complete a real five-task lifecycle using a fake native client", async () => {
