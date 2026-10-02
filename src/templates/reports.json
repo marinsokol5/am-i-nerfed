@@ -1,0 +1,968 @@
+{
+  "schemaVersion": 1,
+  "audit": {
+    "scope": "Full lab/vague.py HYP_SPACE with either no extension or each single EXTENSIONS entry; an extension remains fixed across both months. Drift requires exactly one HYP_SPACE parameter change. August rule/extension pairs are retained, not only canonical rules.",
+    "vagueSourceSha256": "5242ce0493639abf8685cc34601a78303e7da8e48e14e0831e8e44612cc42f59",
+    "hypothesisSpace": {
+      "counted": [
+        "not_cancelled",
+        "delivered_only",
+        "not_cancelled_or_refunded"
+      ],
+      "bulk": [
+        null,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        15,
+        20
+      ],
+      "rounding": [
+        "exact",
+        "nearest10",
+        "down10"
+      ],
+      "late": [
+        "after_promised",
+        "grace1",
+        "after_promised_or_pending"
+      ],
+      "top": [
+        "qty",
+        "revenue",
+        "orders"
+      ],
+      "tie": [
+        "alpha",
+        "first_ordered"
+      ],
+      "sort": [
+        "revenue_desc",
+        "name",
+        "orders_desc"
+      ],
+      "zero_lines": [
+        false,
+        true
+      ]
+    },
+    "extensions": [
+      {},
+      {
+        "late_refunded": true
+      },
+      {
+        "late_scope": "all"
+      },
+      {
+        "top_scope": "delivered"
+      },
+      {
+        "tie": "last_ordered"
+      },
+      {
+        "tie": "by_revenue"
+      },
+      {
+        "tie": "by_qty"
+      },
+      {
+        "tie": "by_orders"
+      },
+      {
+        "round_each": true
+      },
+      {
+        "sort_tie": "secondary"
+      },
+      {
+        "sort_tie": "appearance"
+      },
+      {
+        "sort_on_printed": true
+      },
+      {
+        "disc_unit_round": true
+      },
+      {
+        "late_refunded": true,
+        "late_scope": "all"
+      }
+    ],
+    "containsOriginalTestOrders": false,
+    "containsOriginalTestAnswers": false,
+    "containsSeeds": false,
+    "runtimeRequirement": "Reject a fresh September test unless every retained survivor produces the canonical complete ordered summary; enforce status coverage and the strict-interior bulk gap guard, and make the August change matter for drift cases.",
+    "limitation": "Finite plausible-reading coverage; combinations of arbitrary extensions, discount percentages other than 10%, and unrestricted business rules are not exhaustively covered."
+  },
+  "reports": [
+    {
+      "id": "report-0",
+      "promptPrefix": "hey, could you do the September summary? Sam used to do these before she left. same as before please, the boss reads them on his phone so keep it exactly like hers.\n\n(Promised and Delivered are days of the month.)\n\nJuly orders:\n\n| Order | Customer | Product | Qty | Unit price | Status | Promised | Delivered |\n|---|---|---|---|---|---|---|---|\n| #1000 | Lumen Studio | widgets | 1 | $25 | pending | 23 | — |\n| #1001 | Hollis Dental | brackets | 6 | $19 | delivered | 25 | 23 |\n| #1002 | Hollis Dental | gaskets | 5 | $39 | delivered | 19 | 17 |\n| #1003 | Northgate Gym | widgets | 3 | $75 | refunded | 17 | 19 |\n| #1004 | Pinewood Cafe | hinges | 10 | $26 | cancelled | 20 | — |\n| #1005 | Hollis Dental | widgets | 9 | $28 | delivered | 7 | 5 |\n| #1006 | Hollis Dental | hinges | 15 | $24 | pending | 18 | — |\n| #1007 | Northgate Gym | gaskets | 20 | $52 | delivered | 18 | 20 |\n| #1008 | Hollis Dental | sprockets | 5 | $45 | delivered | 17 | 19 |\n| #1009 | Pinewood Cafe | brackets | 3 | $84 | cancelled | 9 | — |\n| #1010 | Lumen Studio | gaskets | 9 | $39 | delivered | 10 | 8 |\n| #1011 | Lumen Studio | brackets | 4 | $12 | delivered | 5 | 6 |\n| #1012 | Hollis Dental | sprockets | 5 | $83 | delivered | 3 | 2 |\n| #1013 | Hollis Dental | hinges | 15 | $86 | delivered | 20 | 18 |\n\nSam's July summary:\n\n```text\nHollis Dental: 7 orders, $2,690, 1 late, top hinges\nNorthgate Gym: 2 orders, $1,160, 1 late, top widgets\nLumen Studio: 3 orders, $420, 0 late, top widgets\nKestrel Ltd: 0 orders, $0, 0 late, top -\nPinewood Cafe: 0 orders, $0, 0 late, top -\n```\n\nAugust orders:\n\n| Order | Customer | Product | Qty | Unit price | Status | Promised | Delivered |\n|---|---|---|---|---|---|---|---|\n| #1100 | Hollis Dental | widgets | 8 | $10 | cancelled | 13 | — |\n| #1101 | Northgate Gym | hinges | 11 | $75 | delivered | 3 | 2 |\n| #1102 | Hollis Dental | widgets | 6 | $32 | pending | 9 | — |\n| #1103 | Northgate Gym | brackets | 10 | $37 | refunded | 21 | 22 |\n| #1104 | Pinewood Cafe | gaskets | 20 | $60 | cancelled | 9 | — |\n| #1105 | Hollis Dental | widgets | 1 | $48 | refunded | 21 | 26 |\n| #1106 | Hollis Dental | hinges | 20 | $14 | delivered | 25 | 28 |\n| #1107 | Kestrel Ltd | gaskets | 12 | $7 | refunded | 24 | 26 |\n| #1108 | Pinewood Cafe | sprockets | 20 | $55 | refunded | 24 | 29 |\n| #1109 | Pinewood Cafe | sprockets | 4 | $51 | delivered | 22 | 22 |\n| #1110 | Hollis Dental | brackets | 8 | $23 | pending | 15 | — |\n| #1111 | Northgate Gym | sprockets | 9 | $5 | delivered | 7 | 7 |\n| #1112 | Pinewood Cafe | widgets | 9 | $7 | delivered | 6 | 11 |\n| #1113 | Lumen Studio | hinges | 12 | $26 | pending | 12 | — |\n\nSam's August summary:\n\n```text\nPinewood Cafe: 3 orders, $1,260, 1 late, top sprockets\nNorthgate Gym: 3 orders, $1,240, 0 late, top hinges\nHollis Dental: 4 orders, $680, 1 late, top widgets\nLumen Studio: 1 order, $280, 0 late, top hinges\nKestrel Ltd: 1 order, $80, 0 late, top gaskets\n```\n\n",
+      "customers": [
+        "Northgate Gym",
+        "Pinewood Cafe",
+        "Kestrel Ltd",
+        "Hollis Dental",
+        "Lumen Studio"
+      ],
+      "correctAugustRule": {
+        "counted": "not_cancelled",
+        "bulk": 12,
+        "rounding": "nearest10",
+        "late": "grace1",
+        "top": "orders",
+        "tie": "first_ordered",
+        "sort": "revenue_desc",
+        "zero_lines": true
+      },
+      "julyRule": null,
+      "survivors": [
+        {
+          "rule": {
+            "counted": "not_cancelled",
+            "bulk": 12,
+            "rounding": "nearest10",
+            "late": "grace1",
+            "top": "orders",
+            "tie": "first_ordered",
+            "sort": "revenue_desc",
+            "zero_lines": true
+          },
+          "extension": {
+            "late_scope": "all"
+          }
+        },
+        {
+          "rule": {
+            "counted": "not_cancelled",
+            "bulk": 12,
+            "rounding": "nearest10",
+            "late": "grace1",
+            "top": "orders",
+            "tie": "first_ordered",
+            "sort": "revenue_desc",
+            "zero_lines": true
+          },
+          "extension": {
+            "sort_on_printed": true
+          }
+        },
+        {
+          "rule": {
+            "counted": "not_cancelled",
+            "bulk": 12,
+            "rounding": "nearest10",
+            "late": "grace1",
+            "top": "orders",
+            "tie": "first_ordered",
+            "sort": "revenue_desc",
+            "zero_lines": true
+          },
+          "extension": {
+            "sort_tie": "secondary"
+          }
+        },
+        {
+          "rule": {
+            "counted": "not_cancelled",
+            "bulk": 12,
+            "rounding": "nearest10",
+            "late": "grace1",
+            "top": "orders",
+            "tie": "first_ordered",
+            "sort": "revenue_desc",
+            "zero_lines": true
+          },
+          "extension": {}
+        }
+      ],
+      "generation": {
+        "nOrders": 14,
+        "startOrderId": 1200,
+        "products": [
+          "widgets",
+          "gaskets",
+          "brackets",
+          "hinges",
+          "sprockets"
+        ],
+        "allowedQuantities": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          15,
+          20
+        ],
+        "allowedStatuses": [
+          "cancelled",
+          "delivered",
+          "pending",
+          "refunded"
+        ],
+        "bulkSafeGap": {
+          "lo": 11,
+          "hi": 12
+        },
+        "driftChangedParameter": null
+      },
+      "audit": {
+        "publicPrefixSha256": "7cf2e9bdafa4786d2fc270d9e69e8633c340f6ef5e8848b8c63d1657ab492691",
+        "literalExampleSummariesVerified": true,
+        "compatibleRuleExtensionPairsBeforeDeduplication": 4,
+        "survivorCount": 4,
+        "originalTestUniqueWithinScope": true,
+        "customerMonthDiscount": {
+          "scope": "10% customer-month discount; thresholds 1..280; quantity qualification over counted/all/non-cancelled/delivered orders; all counted/rounding/zero-line policies; round-each and whole-dollar discounted unit rounding; count/revenue necessary-condition prefilter only",
+          "profileCountsByMonth": [
+            0,
+            0
+          ],
+          "compatibleCountRevenueProfilesOrPairs": 0,
+          "ruledOutByCountRevenue": true,
+          "limitation": "No unrestricted business-rule uniqueness claim; nonzero counts would require a full top/late/sort audit before packaging."
+        }
+      }
+    },
+    {
+      "id": "report-drift-5",
+      "promptPrefix": "hey, could you do the September summary? Sam used to do these before she left. same as before please, the boss reads them on his phone. oh and he asked her to change one thing in August, just the one, no idea what though and he can't remember either 🙄\n\n(Promised and Delivered are days of the month.)\n\nJuly orders:\n\n| Order | Customer | Product | Qty | Unit price | Status | Promised | Delivered |\n|---|---|---|---|---|---|---|---|\n| #1000 | Moss & Daughters | gaskets | 15 | $74 | pending | 3 | — |\n| #1001 | Northgate Gym | brackets | 5 | $70 | cancelled | 8 | — |\n| #1002 | Lumen Studio | hinges | 15 | $78 | delivered | 15 | 17 |\n| #1003 | Northgate Gym | gaskets | 5 | $61 | delivered | 11 | 11 |\n| #1004 | Kestrel Ltd | gaskets | 3 | $8 | delivered | 11 | 14 |\n| #1005 | Northgate Gym | brackets | 12 | $52 | cancelled | 25 | — |\n| #1006 | Lumen Studio | hinges | 7 | $15 | refunded | 10 | 12 |\n| #1007 | Northgate Gym | brackets | 6 | $18 | delivered | 20 | 21 |\n| #1008 | Northgate Gym | gaskets | 20 | $33 | refunded | 26 | 28 |\n| #1009 | Pinewood Cafe | hinges | 15 | $20 | delivered | 6 | 4 |\n| #1010 | Moss & Daughters | hinges | 8 | $86 | pending | 24 | — |\n| #1011 | Lumen Studio | hinges | 8 | $17 | delivered | 3 | 1 |\n| #1012 | Pinewood Cafe | brackets | 4 | $67 | delivered | 26 | 27 |\n| #1013 | Kestrel Ltd | brackets | 2 | $43 | pending | 19 | — |\n\nSam's July summary:\n\n```text\nLumen Studio: 2 orders, $1,180, 1 late, top hinges\nNorthgate Gym: 2 orders, $410, 1 late, top brackets\nPinewood Cafe: 2 orders, $540, 1 late, top hinges\nKestrel Ltd: 1 order, $20, 1 late, top gaskets\n```\n\nAugust orders:\n\n| Order | Customer | Product | Qty | Unit price | Status | Promised | Delivered |\n|---|---|---|---|---|---|---|---|\n| #1100 | Kestrel Ltd | sprockets | 7 | $86 | delivered | 16 | 17 |\n| #1101 | Lumen Studio | hinges | 5 | $67 | delivered | 24 | 27 |\n| #1102 | Lumen Studio | brackets | 2 | $9 | refunded | 10 | 11 |\n| #1103 | Kestrel Ltd | sprockets | 5 | $79 | delivered | 8 | 7 |\n| #1104 | Pinewood Cafe | widgets | 9 | $80 | delivered | 7 | 7 |\n| #1105 | Northgate Gym | brackets | 5 | $26 | pending | 11 | — |\n| #1106 | Pinewood Cafe | sprockets | 20 | $67 | delivered | 12 | 12 |\n| #1107 | Kestrel Ltd | widgets | 7 | $87 | cancelled | 10 | — |\n| #1108 | Northgate Gym | brackets | 1 | $72 | refunded | 21 | 24 |\n| #1109 | Kestrel Ltd | widgets | 8 | $71 | cancelled | 22 | — |\n| #1110 | Lumen Studio | brackets | 5 | $95 | cancelled | 21 | — |\n| #1111 | Kestrel Ltd | brackets | 8 | $32 | cancelled | 5 | — |\n| #1112 | Lumen Studio | brackets | 4 | $27 | delivered | 5 | 6 |\n| #1113 | Kestrel Ltd | sprockets | 12 | $47 | delivered | 14 | 14 |\n\nSam's August summary:\n\n```text\nKestrel Ltd: 3 orders, $1,500, 1 late, top sprockets\nLumen Studio: 2 orders, $440, 2 late, top hinges\nPinewood Cafe: 2 orders, $1,850, 0 late, top sprockets\nNorthgate Gym: 1 order, $130, 1 late, top brackets\n```\n\n",
+      "customers": [
+        "Pinewood Cafe",
+        "Kestrel Ltd",
+        "Lumen Studio",
+        "Northgate Gym",
+        "Moss & Daughters"
+      ],
+      "correctAugustRule": {
+        "counted": "not_cancelled_or_refunded",
+        "bulk": 8,
+        "rounding": "nearest10",
+        "late": "after_promised_or_pending",
+        "top": "qty",
+        "tie": "alpha",
+        "sort": "orders_desc",
+        "zero_lines": false
+      },
+      "julyRule": {
+        "counted": "delivered_only",
+        "bulk": 8,
+        "rounding": "nearest10",
+        "late": "after_promised_or_pending",
+        "top": "qty",
+        "tie": "alpha",
+        "sort": "orders_desc",
+        "zero_lines": false
+      },
+      "survivors": [
+        {
+          "rule": {
+            "counted": "not_cancelled_or_refunded",
+            "bulk": 8,
+            "rounding": "nearest10",
+            "late": "after_promised_or_pending",
+            "top": "qty",
+            "tie": "alpha",
+            "sort": "orders_desc",
+            "zero_lines": false
+          },
+          "extension": {
+            "late_refunded": true
+          }
+        },
+        {
+          "rule": {
+            "counted": "not_cancelled_or_refunded",
+            "bulk": 8,
+            "rounding": "nearest10",
+            "late": "after_promised_or_pending",
+            "top": "qty",
+            "tie": "first_ordered",
+            "sort": "orders_desc",
+            "zero_lines": false
+          },
+          "extension": {
+            "late_refunded": true
+          }
+        },
+        {
+          "rule": {
+            "counted": "not_cancelled_or_refunded",
+            "bulk": 8,
+            "rounding": "nearest10",
+            "late": "after_promised_or_pending",
+            "top": "qty",
+            "tie": "alpha",
+            "sort": "orders_desc",
+            "zero_lines": false
+          },
+          "extension": {
+            "sort_on_printed": true
+          }
+        },
+        {
+          "rule": {
+            "counted": "not_cancelled_or_refunded",
+            "bulk": 8,
+            "rounding": "nearest10",
+            "late": "after_promised_or_pending",
+            "top": "qty",
+            "tie": "first_ordered",
+            "sort": "orders_desc",
+            "zero_lines": false
+          },
+          "extension": {
+            "sort_on_printed": true
+          }
+        },
+        {
+          "rule": {
+            "counted": "not_cancelled_or_refunded",
+            "bulk": 8,
+            "rounding": "nearest10",
+            "late": "after_promised_or_pending",
+            "top": "qty",
+            "tie": "alpha",
+            "sort": "orders_desc",
+            "zero_lines": false
+          },
+          "extension": {}
+        },
+        {
+          "rule": {
+            "counted": "not_cancelled_or_refunded",
+            "bulk": 8,
+            "rounding": "nearest10",
+            "late": "after_promised_or_pending",
+            "top": "qty",
+            "tie": "alpha",
+            "sort": "orders_desc",
+            "zero_lines": false
+          },
+          "extension": {
+            "tie": "by_orders"
+          }
+        },
+        {
+          "rule": {
+            "counted": "not_cancelled_or_refunded",
+            "bulk": 8,
+            "rounding": "nearest10",
+            "late": "after_promised_or_pending",
+            "top": "orders",
+            "tie": "alpha",
+            "sort": "orders_desc",
+            "zero_lines": false
+          },
+          "extension": {
+            "tie": "by_qty"
+          }
+        },
+        {
+          "rule": {
+            "counted": "not_cancelled_or_refunded",
+            "bulk": 8,
+            "rounding": "nearest10",
+            "late": "after_promised_or_pending",
+            "top": "qty",
+            "tie": "alpha",
+            "sort": "orders_desc",
+            "zero_lines": false
+          },
+          "extension": {
+            "tie": "by_qty"
+          }
+        },
+        {
+          "rule": {
+            "counted": "not_cancelled_or_refunded",
+            "bulk": 8,
+            "rounding": "nearest10",
+            "late": "after_promised_or_pending",
+            "top": "qty",
+            "tie": "alpha",
+            "sort": "orders_desc",
+            "zero_lines": false
+          },
+          "extension": {
+            "tie": "by_revenue"
+          }
+        },
+        {
+          "rule": {
+            "counted": "not_cancelled_or_refunded",
+            "bulk": 8,
+            "rounding": "nearest10",
+            "late": "after_promised_or_pending",
+            "top": "qty",
+            "tie": "first_ordered",
+            "sort": "orders_desc",
+            "zero_lines": false
+          },
+          "extension": {}
+        },
+        {
+          "rule": {
+            "counted": "not_cancelled_or_refunded",
+            "bulk": 8,
+            "rounding": "nearest10",
+            "late": "after_promised_or_pending",
+            "top": "qty",
+            "tie": "alpha",
+            "sort": "orders_desc",
+            "zero_lines": false
+          },
+          "extension": {
+            "tie": "last_ordered"
+          }
+        }
+      ],
+      "generation": {
+        "nOrders": 14,
+        "startOrderId": 1200,
+        "products": [
+          "widgets",
+          "gaskets",
+          "brackets",
+          "hinges",
+          "sprockets"
+        ],
+        "allowedQuantities": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          15,
+          20
+        ],
+        "allowedStatuses": [
+          "cancelled",
+          "delivered",
+          "pending",
+          "refunded"
+        ],
+        "bulkSafeGap": {
+          "lo": 7,
+          "hi": 9
+        },
+        "driftChangedParameter": "counted"
+      },
+      "audit": {
+        "publicPrefixSha256": "7884e93c97dc6ff66cb36a6615b542e2d9322de0f96a6922c18cedc28a724575",
+        "literalExampleSummariesVerified": true,
+        "compatibleRuleExtensionPairsBeforeDeduplication": 16,
+        "survivorCount": 11,
+        "originalTestUniqueWithinScope": true,
+        "customerMonthDiscount": {
+          "scope": "10% customer-month discount; thresholds 1..280; quantity qualification over counted/all/non-cancelled/delivered orders; all counted/rounding/zero-line policies; round-each and whole-dollar discounted unit rounding; count/revenue necessary-condition prefilter only",
+          "profileCountsByMonth": [
+            0,
+            0
+          ],
+          "compatibleCountRevenueProfilesOrPairs": 0,
+          "ruledOutByCountRevenue": true,
+          "limitation": "No unrestricted business-rule uniqueness claim; nonzero counts would require a full top/late/sort audit before packaging."
+        }
+      }
+    },
+    {
+      "id": "report-14",
+      "promptPrefix": "hey, could you do the September summary? Sam used to do these before she left. same as before please, the boss reads them on his phone so keep it exactly like hers.\n\n(Promised and Delivered are days of the month.)\n\nJuly orders:\n\n| Order | Customer | Product | Qty | Unit price | Status | Promised | Delivered |\n|---|---|---|---|---|---|---|---|\n| #1000 | Moss & Daughters | sprockets | 3 | $87 | delivered | 22 | 20 |\n| #1001 | Northgate Gym | brackets | 7 | $61 | delivered | 16 | 16 |\n| #1002 | Moss & Daughters | gaskets | 2 | $20 | delivered | 12 | 15 |\n| #1003 | Northgate Gym | brackets | 5 | $79 | pending | 26 | — |\n| #1004 | Northgate Gym | gaskets | 3 | $54 | delivered | 17 | 22 |\n| #1005 | Kestrel Ltd | gaskets | 5 | $80 | delivered | 18 | 18 |\n| #1006 | Pinewood Cafe | hinges | 8 | $21 | pending | 13 | — |\n| #1007 | Northgate Gym | widgets | 8 | $5 | delivered | 8 | 13 |\n| #1008 | Moss & Daughters | widgets | 15 | $67 | refunded | 26 | 27 |\n| #1009 | Pinewood Cafe | sprockets | 6 | $43 | delivered | 26 | 26 |\n| #1010 | Moss & Daughters | brackets | 5 | $53 | delivered | 10 | 12 |\n| #1011 | Kestrel Ltd | brackets | 20 | $10 | pending | 18 | — |\n| #1012 | Kestrel Ltd | hinges | 11 | $13 | delivered | 14 | 14 |\n| #1013 | Northgate Gym | widgets | 10 | $95 | refunded | 21 | 20 |\n\nSam's July summary:\n\n```text\nKestrel Ltd: 3 orders, $710, 1 late, top gaskets\nMoss & Daughters: 3 orders, $570, 2 late, top sprockets\nNorthgate Gym: 4 orders, $1,020, 3 late, top brackets\nPinewood Cafe: 2 orders, $430, 1 late, top hinges\n```\n\nAugust orders:\n\n| Order | Customer | Product | Qty | Unit price | Status | Promised | Delivered |\n|---|---|---|---|---|---|---|---|\n| #1100 | Pinewood Cafe | hinges | 2 | $95 | refunded | 17 | 15 |\n| #1101 | Kestrel Ltd | gaskets | 9 | $94 | delivered | 3 | 3 |\n| #1102 | Kestrel Ltd | hinges | 4 | $24 | cancelled | 23 | — |\n| #1103 | Kestrel Ltd | hinges | 20 | $14 | refunded | 6 | 6 |\n| #1104 | Northgate Gym | brackets | 1 | $41 | pending | 7 | — |\n| #1105 | Moss & Daughters | hinges | 2 | $94 | delivered | 10 | 15 |\n| #1106 | Northgate Gym | sprockets | 2 | $81 | delivered | 16 | 17 |\n| #1107 | Moss & Daughters | brackets | 11 | $28 | pending | 14 | — |\n| #1108 | Northgate Gym | brackets | 1 | $5 | delivered | 20 | 22 |\n| #1109 | Moss & Daughters | gaskets | 15 | $32 | refunded | 19 | 17 |\n| #1110 | Lumen Studio | widgets | 2 | $5 | cancelled | 21 | — |\n| #1111 | Kestrel Ltd | gaskets | 4 | $75 | delivered | 12 | 12 |\n| #1112 | Northgate Gym | brackets | 1 | $85 | pending | 8 | — |\n| #1113 | Kestrel Ltd | sprockets | 9 | $75 | delivered | 9 | 8 |\n\nSam's August summary:\n\n```text\nKestrel Ltd: 3 orders, $1,820, 0 late, top gaskets\nMoss & Daughters: 2 orders, $470, 2 late, top hinges\nNorthgate Gym: 4 orders, $290, 4 late, top brackets\n```\n\n",
+      "customers": [
+        "Moss & Daughters",
+        "Lumen Studio",
+        "Pinewood Cafe",
+        "Kestrel Ltd",
+        "Northgate Gym"
+      ],
+      "correctAugustRule": {
+        "counted": "not_cancelled_or_refunded",
+        "bulk": 10,
+        "rounding": "nearest10",
+        "late": "after_promised_or_pending",
+        "top": "orders",
+        "tie": "first_ordered",
+        "sort": "name",
+        "zero_lines": false
+      },
+      "julyRule": null,
+      "survivors": [
+        {
+          "rule": {
+            "counted": "not_cancelled_or_refunded",
+            "bulk": 10,
+            "rounding": "nearest10",
+            "late": "after_promised_or_pending",
+            "top": "orders",
+            "tie": "first_ordered",
+            "sort": "name",
+            "zero_lines": false
+          },
+          "extension": {
+            "late_refunded": true
+          }
+        },
+        {
+          "rule": {
+            "counted": "not_cancelled_or_refunded",
+            "bulk": 10,
+            "rounding": "nearest10",
+            "late": "after_promised_or_pending",
+            "top": "orders",
+            "tie": "first_ordered",
+            "sort": "name",
+            "zero_lines": false
+          },
+          "extension": {
+            "late_scope": "all"
+          }
+        },
+        {
+          "rule": {
+            "counted": "not_cancelled_or_refunded",
+            "bulk": 10,
+            "rounding": "nearest10",
+            "late": "after_promised_or_pending",
+            "top": "orders",
+            "tie": "first_ordered",
+            "sort": "name",
+            "zero_lines": false
+          },
+          "extension": {
+            "sort_on_printed": true
+          }
+        },
+        {
+          "rule": {
+            "counted": "not_cancelled_or_refunded",
+            "bulk": 10,
+            "rounding": "nearest10",
+            "late": "after_promised_or_pending",
+            "top": "orders",
+            "tie": "first_ordered",
+            "sort": "name",
+            "zero_lines": false
+          },
+          "extension": {
+            "sort_tie": "appearance"
+          }
+        },
+        {
+          "rule": {
+            "counted": "not_cancelled_or_refunded",
+            "bulk": 10,
+            "rounding": "nearest10",
+            "late": "after_promised_or_pending",
+            "top": "orders",
+            "tie": "first_ordered",
+            "sort": "name",
+            "zero_lines": false
+          },
+          "extension": {
+            "sort_tie": "secondary"
+          }
+        },
+        {
+          "rule": {
+            "counted": "not_cancelled_or_refunded",
+            "bulk": 10,
+            "rounding": "nearest10",
+            "late": "after_promised_or_pending",
+            "top": "orders",
+            "tie": "first_ordered",
+            "sort": "name",
+            "zero_lines": false
+          },
+          "extension": {}
+        },
+        {
+          "rule": {
+            "counted": "not_cancelled_or_refunded",
+            "bulk": 11,
+            "rounding": "nearest10",
+            "late": "after_promised_or_pending",
+            "top": "orders",
+            "tie": "first_ordered",
+            "sort": "name",
+            "zero_lines": false
+          },
+          "extension": {
+            "late_refunded": true
+          }
+        },
+        {
+          "rule": {
+            "counted": "not_cancelled_or_refunded",
+            "bulk": 11,
+            "rounding": "nearest10",
+            "late": "after_promised_or_pending",
+            "top": "orders",
+            "tie": "first_ordered",
+            "sort": "name",
+            "zero_lines": false
+          },
+          "extension": {
+            "late_scope": "all"
+          }
+        },
+        {
+          "rule": {
+            "counted": "not_cancelled_or_refunded",
+            "bulk": 11,
+            "rounding": "nearest10",
+            "late": "after_promised_or_pending",
+            "top": "orders",
+            "tie": "first_ordered",
+            "sort": "name",
+            "zero_lines": false
+          },
+          "extension": {
+            "sort_on_printed": true
+          }
+        },
+        {
+          "rule": {
+            "counted": "not_cancelled_or_refunded",
+            "bulk": 11,
+            "rounding": "nearest10",
+            "late": "after_promised_or_pending",
+            "top": "orders",
+            "tie": "first_ordered",
+            "sort": "name",
+            "zero_lines": false
+          },
+          "extension": {
+            "sort_tie": "appearance"
+          }
+        },
+        {
+          "rule": {
+            "counted": "not_cancelled_or_refunded",
+            "bulk": 11,
+            "rounding": "nearest10",
+            "late": "after_promised_or_pending",
+            "top": "orders",
+            "tie": "first_ordered",
+            "sort": "name",
+            "zero_lines": false
+          },
+          "extension": {
+            "sort_tie": "secondary"
+          }
+        },
+        {
+          "rule": {
+            "counted": "not_cancelled_or_refunded",
+            "bulk": 11,
+            "rounding": "nearest10",
+            "late": "after_promised_or_pending",
+            "top": "orders",
+            "tie": "first_ordered",
+            "sort": "name",
+            "zero_lines": false
+          },
+          "extension": {}
+        }
+      ],
+      "generation": {
+        "nOrders": 14,
+        "startOrderId": 1200,
+        "products": [
+          "widgets",
+          "gaskets",
+          "brackets",
+          "hinges",
+          "sprockets"
+        ],
+        "allowedQuantities": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          15,
+          20
+        ],
+        "allowedStatuses": [
+          "cancelled",
+          "delivered",
+          "pending",
+          "refunded"
+        ],
+        "bulkSafeGap": {
+          "lo": 9,
+          "hi": 11
+        },
+        "driftChangedParameter": null
+      },
+      "audit": {
+        "publicPrefixSha256": "fa053aec952aaa229da81b6338fc4e00a311dae13a265f88213b094fd8f2f2ad",
+        "literalExampleSummariesVerified": true,
+        "compatibleRuleExtensionPairsBeforeDeduplication": 12,
+        "survivorCount": 12,
+        "originalTestUniqueWithinScope": true,
+        "customerMonthDiscount": {
+          "scope": "10% customer-month discount; thresholds 1..280; quantity qualification over counted/all/non-cancelled/delivered orders; all counted/rounding/zero-line policies; round-each and whole-dollar discounted unit rounding; count/revenue necessary-condition prefilter only",
+          "profileCountsByMonth": [
+            0,
+            0
+          ],
+          "compatibleCountRevenueProfilesOrPairs": 0,
+          "ruledOutByCountRevenue": true,
+          "limitation": "No unrestricted business-rule uniqueness claim; nonzero counts would require a full top/late/sort audit before packaging."
+        }
+      }
+    },
+    {
+      "id": "report-drift-7",
+      "promptPrefix": "Hiya — can you sort the September customer summary? Sam's gone and nobody knows how she did them, just copy whatever she did. I think the boss got her to tweak one thing in August after a moan in a meeting (only the one thing), so do it the August way.\n\n(Promised and Delivered are days of the month.)\n\nJuly orders:\n\n| Order | Customer | Product | Qty | Unit price | Status | Promised | Delivered |\n|---|---|---|---|---|---|---|---|\n| #1000 | Kestrel Ltd | brackets | 6 | $25 | delivered | 24 | 26 |\n| #1001 | Lumen Studio | sprockets | 3 | $26 | delivered | 16 | 16 |\n| #1002 | Northgate Gym | gaskets | 5 | $58 | cancelled | 25 | — |\n| #1003 | Pinewood Cafe | brackets | 11 | $35 | delivered | 19 | 19 |\n| #1004 | Moss & Daughters | hinges | 15 | $41 | refunded | 26 | 25 |\n| #1005 | Pinewood Cafe | gaskets | 9 | $31 | refunded | 25 | 26 |\n| #1006 | Moss & Daughters | hinges | 15 | $36 | delivered | 21 | 19 |\n| #1007 | Moss & Daughters | gaskets | 6 | $65 | delivered | 20 | 23 |\n| #1008 | Pinewood Cafe | hinges | 15 | $54 | refunded | 18 | 20 |\n| #1009 | Pinewood Cafe | gaskets | 12 | $47 | delivered | 24 | 24 |\n| #1010 | Lumen Studio | gaskets | 15 | $69 | refunded | 25 | 26 |\n| #1011 | Moss & Daughters | sprockets | 15 | $4 | pending | 11 | — |\n| #1012 | Lumen Studio | brackets | 5 | $52 | delivered | 19 | 24 |\n| #1013 | Kestrel Ltd | gaskets | 6 | $91 | delivered | 15 | 13 |\n\nSam's July summary:\n\n```text\nMoss & Daughters: 4 orders, $1,480, 2 late, top hinges\nPinewood Cafe: 4 orders, $1,830, 0 late, top gaskets\nLumen Studio: 3 orders, $1,260, 1 late, top gaskets\nKestrel Ltd: 2 orders, $690, 1 late, top gaskets\nNorthgate Gym: 0 orders, $0, 0 late, top -\n```\n\nAugust orders:\n\n| Order | Customer | Product | Qty | Unit price | Status | Promised | Delivered |\n|---|---|---|---|---|---|---|---|\n| #1100 | Pinewood Cafe | widgets | 5 | $89 | delivered | 15 | 17 |\n| #1101 | Lumen Studio | gaskets | 5 | $4 | refunded | 3 | 3 |\n| #1102 | Pinewood Cafe | sprockets | 11 | $88 | pending | 20 | — |\n| #1103 | Lumen Studio | gaskets | 5 | $90 | delivered | 25 | 23 |\n| #1104 | Kestrel Ltd | brackets | 7 | $81 | delivered | 11 | 13 |\n| #1105 | Moss & Daughters | gaskets | 5 | $70 | delivered | 14 | 16 |\n| #1106 | Lumen Studio | sprockets | 7 | $25 | cancelled | 3 | — |\n| #1107 | Kestrel Ltd | hinges | 9 | $63 | delivered | 26 | 27 |\n| #1108 | Pinewood Cafe | sprockets | 11 | $87 | cancelled | 19 | — |\n| #1109 | Moss & Daughters | sprockets | 4 | $77 | delivered | 23 | 25 |\n| #1110 | Northgate Gym | gaskets | 20 | $9 | pending | 10 | — |\n| #1111 | Northgate Gym | hinges | 4 | $89 | cancelled | 6 | — |\n| #1112 | Moss & Daughters | brackets | 8 | $39 | delivered | 23 | 23 |\n| #1113 | Moss & Daughters | widgets | 4 | $32 | pending | 19 | — |\n\nSam's August summary:\n\n```text\nMoss & Daughters: 3 orders, $930, 2 late, top gaskets\nKestrel Ltd: 2 orders, $1,070, 2 late, top brackets\nLumen Studio: 1 order, $450, 0 late, top gaskets\nPinewood Cafe: 1 order, $440, 1 late, top widgets\nNorthgate Gym: 0 orders, $0, 0 late, top -\n```\n\n",
+      "customers": [
+        "Lumen Studio",
+        "Pinewood Cafe",
+        "Moss & Daughters",
+        "Northgate Gym",
+        "Kestrel Ltd"
+      ],
+      "correctAugustRule": {
+        "counted": "delivered_only",
+        "bulk": 8,
+        "rounding": "down10",
+        "late": "after_promised_or_pending",
+        "top": "revenue",
+        "tie": "alpha",
+        "sort": "orders_desc",
+        "zero_lines": true
+      },
+      "julyRule": {
+        "counted": "not_cancelled",
+        "bulk": 8,
+        "rounding": "down10",
+        "late": "after_promised_or_pending",
+        "top": "revenue",
+        "tie": "alpha",
+        "sort": "orders_desc",
+        "zero_lines": true
+      },
+      "survivors": [
+        {
+          "rule": {
+            "counted": "delivered_only",
+            "bulk": 8,
+            "rounding": "down10",
+            "late": "after_promised_or_pending",
+            "top": "revenue",
+            "tie": "alpha",
+            "sort": "orders_desc",
+            "zero_lines": true
+          },
+          "extension": {
+            "sort_on_printed": true
+          }
+        },
+        {
+          "rule": {
+            "counted": "delivered_only",
+            "bulk": 8,
+            "rounding": "down10",
+            "late": "after_promised_or_pending",
+            "top": "revenue",
+            "tie": "first_ordered",
+            "sort": "orders_desc",
+            "zero_lines": true
+          },
+          "extension": {
+            "sort_on_printed": true
+          }
+        },
+        {
+          "rule": {
+            "counted": "delivered_only",
+            "bulk": 8,
+            "rounding": "down10",
+            "late": "after_promised_or_pending",
+            "top": "revenue",
+            "tie": "alpha",
+            "sort": "orders_desc",
+            "zero_lines": true
+          },
+          "extension": {}
+        },
+        {
+          "rule": {
+            "counted": "delivered_only",
+            "bulk": 8,
+            "rounding": "down10",
+            "late": "after_promised_or_pending",
+            "top": "revenue",
+            "tie": "alpha",
+            "sort": "orders_desc",
+            "zero_lines": true
+          },
+          "extension": {
+            "tie": "by_orders"
+          }
+        },
+        {
+          "rule": {
+            "counted": "delivered_only",
+            "bulk": 8,
+            "rounding": "down10",
+            "late": "after_promised_or_pending",
+            "top": "revenue",
+            "tie": "alpha",
+            "sort": "orders_desc",
+            "zero_lines": true
+          },
+          "extension": {
+            "tie": "by_qty"
+          }
+        },
+        {
+          "rule": {
+            "counted": "delivered_only",
+            "bulk": 8,
+            "rounding": "down10",
+            "late": "after_promised_or_pending",
+            "top": "orders",
+            "tie": "alpha",
+            "sort": "orders_desc",
+            "zero_lines": true
+          },
+          "extension": {
+            "tie": "by_revenue"
+          }
+        },
+        {
+          "rule": {
+            "counted": "delivered_only",
+            "bulk": 8,
+            "rounding": "down10",
+            "late": "after_promised_or_pending",
+            "top": "revenue",
+            "tie": "alpha",
+            "sort": "orders_desc",
+            "zero_lines": true
+          },
+          "extension": {
+            "tie": "by_revenue"
+          }
+        },
+        {
+          "rule": {
+            "counted": "delivered_only",
+            "bulk": 8,
+            "rounding": "down10",
+            "late": "after_promised_or_pending",
+            "top": "revenue",
+            "tie": "first_ordered",
+            "sort": "orders_desc",
+            "zero_lines": true
+          },
+          "extension": {}
+        },
+        {
+          "rule": {
+            "counted": "delivered_only",
+            "bulk": 8,
+            "rounding": "down10",
+            "late": "after_promised_or_pending",
+            "top": "revenue",
+            "tie": "alpha",
+            "sort": "orders_desc",
+            "zero_lines": true
+          },
+          "extension": {
+            "tie": "last_ordered"
+          }
+        }
+      ],
+      "generation": {
+        "nOrders": 14,
+        "startOrderId": 1200,
+        "products": [
+          "widgets",
+          "gaskets",
+          "brackets",
+          "hinges",
+          "sprockets"
+        ],
+        "allowedQuantities": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          15,
+          20
+        ],
+        "allowedStatuses": [
+          "cancelled",
+          "delivered",
+          "pending",
+          "refunded"
+        ],
+        "bulkSafeGap": {
+          "lo": 7,
+          "hi": 8
+        },
+        "driftChangedParameter": "counted"
+      },
+      "audit": {
+        "publicPrefixSha256": "9cd0a940c4e105c716ccb962c664af5725e14a13b5afdda54daca5d826263e53",
+        "literalExampleSummariesVerified": true,
+        "compatibleRuleExtensionPairsBeforeDeduplication": 14,
+        "survivorCount": 9,
+        "originalTestUniqueWithinScope": true,
+        "customerMonthDiscount": {
+          "scope": "10% customer-month discount; thresholds 1..280; quantity qualification over counted/all/non-cancelled/delivered orders; all counted/rounding/zero-line policies; round-each and whole-dollar discounted unit rounding; count/revenue necessary-condition prefilter only",
+          "profileCountsByMonth": [
+            0,
+            0
+          ],
+          "compatibleCountRevenueProfilesOrPairs": 0,
+          "ruledOutByCountRevenue": true,
+          "limitation": "No unrestricted business-rule uniqueness claim; nonzero counts would require a full top/late/sort audit before packaging."
+        }
+      }
+    }
+  ]
+}

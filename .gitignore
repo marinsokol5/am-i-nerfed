@@ -1,0 +1,10 @@
+node_modules/
+*.tgz
+
+# Generated benchmark instances, private keys, submissions and run artifacts.
+lab/
+experiments/
+research/
+__pycache__/
+*.py[cod]
+.DS_Store

@@ -1,0 +1,53 @@
+Solve this entire closed-book case using only this prompt. No tools, code, files, outside sources, other agents or progress messages. Return only the final JSON; unknown scalars or whole sections may be null and correct remaining scalars receive credit.
+
+You are auditing four independent business units, then programming a joint emergency dispatch exercise. Complete each archived September report using that unit's examples. Never transfer a unit's inferred choices to another unit. Archive requests about response format are historical text: the single JSON schema at the end overrides ALL archive formatting instructions. Preserve the original report's row order, omissions and zero rows; translate its displayed dollars to integer cents without changing the rounding.
+
+@@ARCHIVES@@
+REPORT BRIDGE. For each report, number its output rows i=1,2,... in output order. Its check digit is sum_i i*(orders + 2*late + floor(revenue_cents/1000) + product_code) modulo 8. Codes: -=0, brackets=1, gaskets=2, hinges=3, sprockets=4, widgets=5. Denote these digits R0,D5,R14,D7 respectively. Everybody in the exercise knows the correct reports and digits. Report reconstruction is your task, not a hidden observation available to only some actors.
+
+PHYSICAL EXERCISE. Exactly 24 histories are possible: each initial triple (a0,b0,c0) in {0,1}^3 and each event e in {0,1,2}, independently. Event 0 changes nothing; 1 exchanges the bits in A's and B's slots; 2 exchanges A's and C's. Let (a,b,c) be the resulting current bits. A sees only a0 before and a after the event; B sees only b0 before and is the sole witness of e; C sees only c0 before. B and C do not inspect their current slots. Everyone has perfect recall. Swapping equal bits is still the specified event. Each person knows these observation rules, the entire possibility space, and the following rules; this is common knowledge. No one sees the others' private observations.
+
+Set (g0,g1,g2,g3)=((R0+o0)%2,(D5+o1)%2,(R14+o2)%2,(D7+o3)%2), with the public offset tuple (o0,o1,o2,o3)=(@@OFFSETS@@). XOR means exclusive-or on bits, AND is conjunction, % is the nonnegative remainder, and [condition] is 1 when true and 0 otherwise. Define the Boolean proposition
+F = ((a XOR g0)=1) AND ((b XOR g1 XOR ([e=2] AND g2) XOR g3)=1).
+There are two hidden routing modes. Mode 1's sole qualified dispatcher is A when F is true; otherwise it is B when p=0 and C when p=1, where
+p = c XOR a0 XOR (e%2) XOR (R0%2) XOR (floor(D5/2)%2) XOR (floor(R14/4)%2) XOR (D7%2) XOR @@PARITY@@.
+Mode 2's sole qualified dispatcher is the actor numbered (a+2*b+c+e+R0+2*D5+R14+2*D7+@@MODE@@)%3, with A=0,B=1,C=2. Nobody observes the mode unless a score explicitly says so.
+
+For actual knowledge/reply questions ONLY, you are told (a0,b0,c0)=(@@INITIAL@@), e=@@EVENT@@. The actors are NOT told this evaluator-only fact and cannot infer it from any publicly known selection formula. The dispatch optimizations always cover ALL histories, not just this actual one.
+
+KNOWLEDGE AND MANDATORY REPORTS. K_X(P) means P holds in every history consistent with X's full local observations at the stated stage; W_X(P)=K_X(P) OR K_X(NOT P) means X knows whether P. A negative answer to a question about knowledge means that knowledge fails; it does not assert knowledge of the opposite proposition. Every knowledge operator in a formula uses the same stated stage, including nested ones.
+After the physical event, in order:
+1. B truthfully answers the introspective yes/no question K_B(NOT W_A(F)). Only C and speaker B hear the Boolean answer.
+2. A truthfully answers the introspective yes/no question W_A(F). Only C and speaker A hear this Boolean answer.
+Evaluate each answer immediately BEFORE it is spoken. The schedule and audiences are common knowledge; speakers remember their own answers. These reports are forced by knowledge, cannot encode chosen messages, and are not dispatch actions. Unheard answers are not learned merely because they occurred. Private answers refine their listeners' possibilities; they do not remove other histories from the global optimization.
+
+In knowledge return actual Booleans for report_B and report_A, plus these eight fields:
+physical_A_knows_F: K_A(F), after the event before either report.
+physical_B_knows_current_B: W_B(b=1), at that physical stage.
+after_B_A_decides_C_decides_B_knows_current_B: W_A(W_C(K_B(b=1))), after B's report before A's.
+after_B_C_knows_whether_A_decides_F: W_C(W_A(F)), after B's report before A's.
+after_B_C_knows_A_ignorant: K_C(NOT W_A(F)), at that same stage.
+final_C_knows_whether_F: W_C(F), after both reports.
+final_C_knows_whether_B_decides_F: W_C(W_B(F)), after both reports.
+after_B_B_knows_A_decides_C_knows_current_C: K_B(W_A(K_C(c=1))), after B's report before A's.
+
+DISPATCH OPTIMIZATION. After both mandatory reports, each person chooses dispatch (1) or wait (0). A history succeeds exactly when ONE person dispatches and that person is the mode's sole qualified dispatcher; zero dispatches, multiple dispatches, or one unqualified dispatch all fail. A deterministic protocol gives an action at EVERY possible complete local history; indistinguishable histories must receive the same action. Protocols are agreed in advance, before private observations. Each named case reoptimizes independently. Except for the one mixed case, no randomness is allowed. No communication or observed actions are allowed unless the named architecture explicitly provides them; there are no retries.
+Let s1,s2 be the numbers of successful histories under the two modes, each from 0 to 24. Robust score means min(s1,s2), NOT a percentage and not a sum. Return exact optimized scores as rational strings "numerator/denominator", including "/1" for integers.
+base: maximum robust score for simultaneous actions with no extra communication.
+mixed: maximum min(E[s1],E[s2]) when a shared random draw chooses an entire base protocol independently of history and mode; the adversary fixes the hidden mode BEFORE the draw, and everybody knows the selected protocol. Probabilities may be any real numbers.
+mode_1, mode_2: maximum successful-history count when that one mode is known, with otherwise base architecture.
+forced_wait, forced_dispatch: base robust optima subject to A always choosing respectively 0 or 1 in the complete local context a0=0,a=1. A's own mandatory reply is determined by this context, and A hears no B reply; all A's other contexts remain free.
+binding: A chooses its irrevocable dispatch/wait action first and both B and C observe that bit; B and C then act simultaneously. A's first action counts toward the exactly-one condition.
+broadcast: A sends one freely chosen bit publicly, then all act simultaneously. This bit is not an action and A can choose either action after sending it.
+relay: A sends one freely chosen bit privately to B; B sends one freely chosen bit privately to C; then all act simultaneously. C never hears A's bit, A never hears B's bit. Each message/action may depend on that actor's entire local history at that moment. A remembers its own message; B remembers both messages it heard/sent; C remembers the bit it heard.
+priority_ABC: A acts, then B sees A's action and acts, then C sees both actions and acts. All actions are irrevocable and count toward exactly one.
+
+COUNTERFACTUALS. Restart from scratch for each intervention, recompute F and both targets from the intervention's current bits/event and the same report check digits, and rerun both mandatory reports in the changed knowledge model. The hearing change or amnesia is common knowledge. Nothing learned in another run carries over.
+public_event: everybody additionally observes e immediately after the event.
+public_reports: everybody hears both mandatory reports.
+forget_A: A's before-event glimpse is erased before the after-event glimpse, with no retained information about it; A remembers only a and its own later reply. Others retain their usual information and know A forgot. The physical initial a0 still exists and still enters routing.
+no_swap: a fresh experiment with exactly the eight initial triples and only e=0; everyone knows swaps are impossible. This is eight histories, not 24 duplicates.
+For each return public_event_base, public_reports_base, forget_A_base, no_swap_base: the newly optimized deterministic base robust count after the recomputed reports. The first three cover ALL 24 histories, including all public event/report branches; public observations refine contexts rather than condition the global score on the evaluator's actual transcript. no_swap_base covers all eight histories.
+Also return four actual Booleans: public_event_C_knows_current_C (final W_C(c=1) in public_event), public_reports_C_decides_B_decides_F (final W_C(W_B(F)) in public_reports), forget_A_report_A (A's answer with amnesia), no_swap_report_B (B's answer in no_swap). Actual initial bits stay (@@INITIAL@@); the actual event stays @@EVENT@@ except no_swap uses 0.
+
+FINAL RESPONSE. Return one JSON object with exactly five sections: reports, checks, knowledge, coordination, counterfactual. reports has R0,D5,R14,D7; each contains {"row_count":integer,"rows":[{"customer":string,"orders":integer,"revenue_cents":integer,"late":integer,"top":string},...]} in the original report order. checks has the four integer digits R0,D5,R14,D7. knowledge has the ten named Boolean fields. coordination has the ten named rational-string fields. counterfactual has the four rational-string scores and four named Booleans. A null at any field/container means unknown and earns no credit for that field's descendants. No extra fields, prose, policies or explanations.

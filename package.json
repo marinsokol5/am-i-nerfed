@@ -1,0 +1,28 @@
+{
+  "name": "am-i-nerfed",
+  "version": "0.4.1",
+  "description": "A private, repeatable reasoning benchmark for your current coding agent",
+  "type": "module",
+  "bin": {
+    "am-i-nerfed": "bin/am-i-nerfed.js"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "scripts/skill-version.js",
+    "skills/am-i-nerfed/",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.20.0"
+  },
+  "scripts": {
+    "test": "node --test --experimental-test-isolation=none test/*.test.js",
+    "version": "node scripts/skill-version.js",
+    "prepack": "node scripts/skill-version.js --check"
+  },
+  "dependencies": {
+    "skills": "1.7.0"
+  },
+  "license": "UNLICENSED"
+}
