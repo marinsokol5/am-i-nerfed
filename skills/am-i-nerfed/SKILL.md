@@ -27,7 +27,7 @@ Note about execution environment:
 
 1. Start the assessment -> `am-i-nerfed start --invocation skill --difficulty <DIFFICULTY> --seconds <TIME>`; substituting requested difficulty/time. Add `--agent` (`codex`, `claude`, `hermes`, ...), `--provider` (`openai`, `anthropic`, `nous`, ...), `--model` (`gpt-6-astra`, `claude-opus-5-5`, ...), and `--effort` (`low`, `medium`, `high`, ...) only when actually known, omitting unknown values; this metadata is self-reported.
     a) Retain the exact returned run ID (<RUN-ID>) and five task IDs (<TASK-ID>).
-2. Retrieve individual task and see currently submitted answer -> `am-i-nerfed question --run <RUN-ID> --task <TASK-ID>`. Answer in the shape of `response`; each value is a JSON type (boolean, integer, string) or a name defined in `types`.
+2. Retrieve individual task and see currently submitted answer -> `am-i-nerfed question --run <RUN-ID> --task <TASK-ID>`, or all five at once -> `am-i-nerfed questions --run <RUN-ID>`. Answer in the shape of `response`; each value is a JSON type (boolean, integer, string) or a name defined in `types`.
 3. Submit a new answer or revise existing -> `am-i-nerfed answer --run <RUN-ID> --task <TASK-ID> --json '<JSON>'`. Quoted stdin or `--file` is also accepted if needed for transport; do not use files to calculate answers. Partial JSON objects merge recursively, omitted fields preserve prior work.
 4. You can check timer at any moment through `am-i-nerfed timer --run <RUN-ID>`.
 5. Once the deadline has passed, stop reasoning and obtain the evaluation result through `am-i-nerfed status --run <RUN-ID>`. Late answers/revisions are rejected. Final score is at `result.percent`; communicate it back to the user.

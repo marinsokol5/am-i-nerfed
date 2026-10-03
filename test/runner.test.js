@@ -61,6 +61,7 @@ test("transport audit permits literal answers and rejects command execution hidd
     `/bin/zsh -lc './assessment status'`,
     "./assessment status --verbose",
     "./assessment timer",
+    "./assessment questions",
     `./assessment answer --task easy-1 --json "{\\"knowledge\\":{}}"`,
     `./assessment answer --task medium-3 --json '{"knowledge":{}}}'`,
     `./assessment answer --task medium-3 --json '{"knowledge":{}}`,
@@ -82,6 +83,8 @@ test("transport audit permits literal answers and rejects command execution hidd
     "./assessment status --verbose --verbose",
     "./assessment status --verbose; python3 solve.py",
     "./assessment timer extra",
+    "./assessment questions --task medium-1",
+    "./assessment questions | cat",
     "./assessment timer; python3 solve.py",
     "./assessment status '",
     "./assessment answer --task medium-3 --json 'null' extra '",
@@ -250,7 +253,7 @@ test("packaged runner and transport complete a real five-task lifecycle using a 
     encoding: "utf8",
   });
   assert.equal(init.status, 0, init.stderr);
-  const fake = `#!${process.execPath}\nconst cp=require('node:child_process');if(process.argv.includes('--version')){console.log('fake-cli-test');process.exit(0);}process.stdin.resume();process.stdin.on('end',()=>{const call=(args)=>{const r=cp.spawnSync('./assessment',args,{encoding:'utf8'});if(r.status)throw Error(r.stderr);return JSON.parse(r.stdout)};const run=call(['start']);for(const t of run.tasks){call(['question','--task',t]);call(['answer','--task',t,'--json','null']);}call(['finish']);console.log(JSON.stringify({type:'turn.completed',usage:{output_tokens:1}}));});\n`;
+  const fake = `#!${process.execPath}\nconst cp=require('node:child_process');if(process.argv.includes('--version')){console.log('fake-cli-test');process.exit(0);}process.stdin.resume();process.stdin.on('end',()=>{const call=(args)=>{const r=cp.spawnSync('./assessment',args,{encoding:'utf8'});if(r.status)throw Error(r.stderr);return JSON.parse(r.stdout)};const run=call(['start']);const all=call(['questions']);if(all.tasks.length!==5)throw Error('questions');for(const t of run.tasks){call(['question','--task',t]);call(['answer','--task',t,'--json','null']);}call(['finish']);console.log(JSON.stringify({type:'turn.completed',usage:{output_tokens:1}}));});\n`;
   fs.writeFileSync(path.join(bin, "codex"), fake, { mode: 0o700 });
   const oldPath = process.env.PATH,
     oldState = process.env.AM_I_NERFED_HOME,

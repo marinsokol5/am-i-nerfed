@@ -63,19 +63,33 @@ export function formatAnswer(result, { verbose = false } = {}) {
   return { accepted: false, reason: result.reason, ...formatRun(result) };
 }
 
-export function formatQuestion(response, taskId) {
-  if (typeof response.task === "string") {
-    const question = {
-      taskId: response.taskId,
-      remainingSeconds: response.clock.remainingSeconds,
-      task: response.task,
-    };
-    if (Object.keys(response.types ?? {}).length) question.types = response.types;
-    question.response = response.response;
-    question.submitted = response.submitted;
-    return question;
-  }
-  const closed = { taskId, status: response.status, remainingSeconds: 0 };
+const taskBody = (q) => ({
+  task: q.task,
+  ...(Object.keys(q.types ?? {}).length ? { types: q.types } : {}),
+  response: q.response,
+  submitted: q.submitted,
+});
+
+function closedQuestion(response, fields) {
+  const closed = { ...fields, status: response.status, remainingSeconds: 0 };
   if (response.failure !== undefined) closed.failure = response.failure;
   return closed;
+}
+
+export function formatQuestion(response, taskId) {
+  if (typeof response.task !== "string") return closedQuestion(response, { taskId });
+  return {
+    taskId: response.taskId,
+    remainingSeconds: response.clock.remainingSeconds,
+    ...taskBody(response),
+  };
+}
+
+// All five tasks in one call, for agents that read everything up front.
+export function formatQuestions(response) {
+  if (!Array.isArray(response.questions)) return closedQuestion(response, {});
+  return {
+    remainingSeconds: response.clock.remainingSeconds,
+    tasks: response.questions.map((q) => ({ taskId: q.taskId, ...taskBody(q) })),
+  };
 }

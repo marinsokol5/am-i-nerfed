@@ -197,7 +197,7 @@ export function startAssessment(state, opts = {}, now) {
   return view(record, now);
 }
 export function assessmentAction(state, action, opts, time = Date.now) {
-  if (!["question", "answer", "status", "finish"].includes(action))
+  if (!["question", "questions", "answer", "status", "finish"].includes(action))
     throw Error("Unknown assessment action");
   const { file, record } = readAssessment(state, opts.runId);
   const closed = (receipt) =>
@@ -256,6 +256,20 @@ export function assessmentAction(state, action, opts, time = Date.now) {
       types: task.types,
       response: task.response,
       submitted: record.drafts[task.id] ?? {},
+    };
+  if (action === "questions")
+    return {
+      ...view(record, now),
+      questions: record.tasks.map(({ id }) => {
+        const t = bank.tasks.find((q) => q.id === id);
+        return {
+          taskId: id,
+          task: t.prompt,
+          types: t.types,
+          response: t.response,
+          submitted: record.drafts[id] ?? {},
+        };
+      }),
     };
   const drafts = {
     ...record.drafts,

@@ -194,3 +194,18 @@ test("run requires --agent, --model and --effort; init saves no defaults", t => 
   }
   assert.equal(f.exec("init", "--agent", "codex").status, 1);
 });
+
+test("questions returns all five tasks with one clock, and only the closed status after the run ends", t => {
+  const f = fixture(t), start = f.json("start", "--seconds", "500");
+  const all = f.json("questions", "--run", start.runId);
+  assert.deepEqual(Object.keys(all), ["remainingSeconds", "tasks"]);
+  assert.deepEqual(all.tasks.map(q => q.taskId), start.tasks);
+  for (const q of all.tasks) {
+    const single = f.json("question", "--run", start.runId, "--task", q.taskId);
+    const { remainingSeconds, ...rest } = single;
+    assert.deepEqual(q, rest);
+  }
+  assert.equal(f.exec("questions", "--run", start.runId, "--verbose").status, 1);
+  f.json("finish", "--run", start.runId);
+  assert.deepEqual(f.json("questions", "--run", start.runId), { status: "finished", remainingSeconds: 0 });
+});

@@ -2,13 +2,19 @@ import fs from "node:fs";
 import path from "node:path";
 import { withLock, active, stateRoot, writeJSON, readJSON } from "./storage.js";
 import { startAssessment, assessmentAction, assessmentTimer } from "./assessment.js";
-import { formatRun, formatQuestion, formatStart, formatAnswer } from "./output.js";
+import {
+  formatRun,
+  formatQuestion,
+  formatQuestions,
+  formatStart,
+  formatAnswer,
+} from "./output.js";
 
 export function transport(configPath, args = process.argv.slice(2)) {
   const config = readJSON(configPath),
     [action, ...rest] = args;
-  if (!["start", "question", "answer", "status", "timer", "finish"].includes(action))
-    throw Error("Use start, question, answer, status, timer or finish");
+  if (!["start", "question", "questions", "answer", "status", "timer", "finish"].includes(action))
+    throw Error("Use start, question, questions, answer, status, timer or finish");
   const opts = {};
   for (let i = 0; i < rest.length; i++) {
     if (rest[i] === "--verbose" && action === "status" && !opts.verbose) {
@@ -80,7 +86,9 @@ export function transport(configPath, args = process.argv.slice(2)) {
       ? formatStart(result)
       : action === "question"
         ? formatQuestion(result, opts["--task"])
-        : action === "answer"
+        : action === "questions"
+          ? formatQuestions(result)
+          : action === "answer"
           ? formatAnswer(result)
           : formatRun(result, { verbose: opts.verbose });
   process.stdout.write(JSON.stringify(output) + "\n");

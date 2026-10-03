@@ -38,7 +38,7 @@ export function examPrompt({ seconds = 120, difficulty = "medium" } = {}) {
 ## Assessment
 
 1. Start the assessment -> \`./assessment start\`. Call it once, immediately, and retain the five returned task IDs (<TASK-ID>).
-2. Retrieve individual task and see currently submitted answer -> \`./assessment question --task <TASK-ID>\`. Answer in the shape of \`response\`; each value is a JSON type (boolean, integer, string) or a name defined in \`types\`.
+2. Retrieve individual task and see currently submitted answer -> \`./assessment question --task <TASK-ID>\`, or all five at once -> \`./assessment questions\`. Answer in the shape of \`response\`; each value is a JSON type (boolean, integer, string) or a name defined in \`types\`.
 3. Submit a new answer or revise existing -> \`./assessment answer --task <TASK-ID> --json '<JSON>'\`. Partial JSON objects merge recursively, omitted fields preserve prior work.
 4. You can check timer at any moment through \`./assessment timer\`.
 5. At the deadline your process is stopped and your saved answers are graded; late answers/revisions are rejected. Ending your turn also ends the assessment.
@@ -230,7 +230,7 @@ export function permittedCommand(command) {
   const action = tokens.shift();
   if (action === "status")
     return tokens.length === 0 || (tokens.length === 1 && tokens[0] === "--verbose");
-  if (["start", "timer", "finish"].includes(action))
+  if (["start", "questions", "timer", "finish"].includes(action))
     return tokens.length === 0;
   if (!["question", "answer"].includes(action)) return false;
   if (

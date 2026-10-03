@@ -21,7 +21,13 @@ import {
 } from "./assessment.js";
 import { runAssessment } from "./runner.js";
 import { installSkill } from "./install.js";
-import { formatRun, formatQuestion, formatStart, formatAnswer } from "./output.js";
+import {
+  formatRun,
+  formatQuestion,
+  formatQuestions,
+  formatStart,
+  formatAnswer,
+} from "./output.js";
 
 const help = `am-i-nerfed — private reasoning assessments
 
@@ -33,6 +39,7 @@ const help = `am-i-nerfed — private reasoning assessments
         [--invocation skill|manual] [--agent NAME] [--provider NAME]
         [--model MODEL] [--effort LEVEL] [--verbose]
   question --run ID --task ID
+  questions --run ID
   answer --run ID --task ID [--json JSON | --file PATH | stdin] [--verbose]
   status --run ID [--verbose]
   timer --run ID
@@ -308,12 +315,12 @@ export async function main(args = process.argv.slice(2)) {
     );
     return;
   }
-  if (["question", "answer", "status", "finish"].includes(command)) {
+  if (["question", "questions", "answer", "status", "finish"].includes(command)) {
     const opts = options(rest, [
       "--run",
       ...(["question", "answer"].includes(command) ? ["--task"] : []),
       ...(command === "answer" ? ["--json", "--file"] : []),
-    ], command === "question" ? [] : ["--verbose"]);
+    ], command.startsWith("question") ? [] : ["--verbose"]);
     if (!opts["--run"]) throw Error("Retain the --run ID returned by start");
     if (["question", "answer"].includes(command) && !opts["--task"])
       throw Error("A --task ID is required");
@@ -329,7 +336,9 @@ export async function main(args = process.argv.slice(2)) {
     emit(
       command === "question"
         ? formatQuestion(result, opts["--task"])
-        : command === "answer"
+        : command === "questions"
+          ? formatQuestions(result)
+          : command === "answer"
           ? formatAnswer(result, { verbose })
           : formatRun(result, { verbose }),
     );
