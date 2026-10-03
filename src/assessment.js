@@ -139,6 +139,7 @@ function view(record, now) {
     provider: record.provider,
     model: record.model,
     effort: record.effort,
+    systemPrompt: record.systemPrompt ?? null,
     metadataSource: record.metadataSource,
     clockEnforcement: record.clockEnforcement,
     status: record.status,
@@ -175,6 +176,9 @@ export function startAssessment(state, opts = {}, now) {
     provider: opts.provider ?? null,
     model: opts.model ?? null,
     effort: opts.effort ?? null,
+    // Only supervised runs control the client's system prompt.
+    systemPrompt:
+      opts.invocation === "cli" ? (opts.systemPrompt ?? "native") : null,
     metadataSource: opts.invocation === "cli" ? "configured" : "self-reported",
     clockEnforcement:
       opts.invocation === "cli" ? "process-watchdog" : "answer-deadline",
@@ -347,6 +351,8 @@ export function listHistory(root, filters = {}) {
         provider: record.provider,
         model: record.model,
         effort: record.effort,
+        systemPrompt:
+          record.systemPrompt ?? (record.invocation === "cli" ? "native" : null),
         metadataSource: record.metadataSource,
         clockEnforcement: record.clockEnforcement,
         difficulty: record.difficulty,

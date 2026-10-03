@@ -19,6 +19,10 @@ import {
   annotateAssessment,
 } from "./assessment.js";
 
+// --no-system-prompt replaces each client's built-in system prompt with this
+// line. Codex rejects empty instructions, so both clients get the same text.
+export const MINIMAL_SYSTEM_PROMPT = "Follow the user's instructions.";
+
 // Keep in sync with skills/am-i-nerfed/SKILL.md (## Rules, ## Assessment);
 // only the CLI-specific parts may differ. See AGENTS.md.
 export function examPrompt({ seconds = 120, difficulty = "medium" } = {}) {
@@ -68,6 +72,9 @@ export function nativeCommand(agent, opts) {
       "none",
       "--allowedTools",
       "Bash(./assessment *)",
+      ...(opts.systemPrompt === "none"
+        ? ["--system-prompt", MINIMAL_SYSTEM_PROMPT]
+        : []),
     ];
   if (agent !== "codex") throw Error("Choose agent codex or claude");
   const settings = {
@@ -92,6 +99,9 @@ export function nativeCommand(agent, opts) {
     "features.view_image": false,
     web_search: "disabled",
     "features.shell_snapshot": false,
+    ...(opts.systemPrompt === "none"
+      ? { model_instructions_file: opts.instructionsFile }
+      : {}),
   };
   return [
     "--no-daemon",
@@ -429,6 +439,9 @@ export async function runAssessment(options) {
     throw Error("Invalid reasoning effort");
   if (!["easy", "medium", "hard"].includes(options.difficulty ?? "medium"))
     throw Error("Invalid difficulty");
+  const systemPrompt = options.systemPrompt ?? "native";
+  if (!["native", "none"].includes(systemPrompt))
+    throw Error("Invalid system prompt mode");
   const seconds = durationSeconds(options.seconds);
   const version = spawnSync(agent, ["--version"], {
     encoding: "utf8",
@@ -458,8 +471,12 @@ export async function runAssessment(options) {
     agent,
     model,
     effort,
+    systemPrompt,
     provider: agent === "codex" ? "openai" : "anthropic",
   };
+  const instructionsFile = path.join(work, "system-prompt.md");
+  if (systemPrompt === "none")
+    fs.writeFileSync(instructionsFile, MINIMAL_SYSTEM_PROMPT, { mode: 0o600 });
   const launchedAt = Date.now();
   writeJSON(config, {
     state,
@@ -502,7 +519,7 @@ export async function runAssessment(options) {
     };
     execution = await supervise(
       agent,
-      nativeCommand(agent, { ...settings, work, state }),
+      nativeCommand(agent, { ...settings, work, state, instructionsFile }),
       { cwd: work, env: childEnv, prompt, deadline, isFinished },
     );
     execution.clientVersion = version.stdout.trim();
@@ -520,6 +537,13 @@ export async function runAssessment(options) {
           "Native session recorded a different reasoning effort";
       if (execution.nativeEvidence?.models.some((value) => value !== model))
         execution.failure = "Native session recorded a different model";
+      const base = execution.nativeEvidence?.baseInstructions;
+      if (
+        base != null &&
+        (systemPrompt === "none") !== (base === MINIMAL_SYSTEM_PROMPT)
+      )
+        execution.failure =
+          "Native session used a different system prompt than requested";
     }
     if (execution.observedEfforts.some((value) => value !== effort))
       execution.failure = "Client reported a different reasoning effort";

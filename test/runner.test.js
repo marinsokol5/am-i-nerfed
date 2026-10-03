@@ -11,7 +11,9 @@ import {
   cleanEnvironment,
   permittedCommand,
   runAssessment,
+  MINIMAL_SYSTEM_PROMPT,
 } from "../src/runner.js";
+import { listHistory } from "../src/assessment.js";
 import { codexEnvironment, codexEvidence } from "../src/codex-context.js";
 
 test("Codex assessment home excludes personal instructions and shares auth without copying it", () => {
@@ -108,6 +110,34 @@ test("both adapters preserve native system prompts and exclude inherited custom 
     assert.equal(env.ANTHROPIC_API_KEY, undefined);
     assert.equal(env.OPENAI_API_KEY, undefined);
     assert.equal(env.CLAUDE_CODE_EFFORT_LEVEL, undefined);
+  }
+});
+test("--no-system-prompt replaces both clients' built-in prompts with the same line", () => {
+  const claude = nativeCommand("claude", {
+    model: "test", effort: "medium", systemPrompt: "none",
+  });
+  assert.equal(claude[claude.indexOf("--system-prompt") + 1], MINIMAL_SYSTEM_PROMPT);
+  const codex = nativeCommand("codex", {
+    model: "test", effort: "medium", state: "/tmp/state", work: "/tmp/work",
+    systemPrompt: "none", instructionsFile: "/tmp/work/system-prompt.md",
+  });
+  assert.ok(
+    codex.some((arg) => arg.includes("model_instructions_file") && arg.includes("/tmp/work/system-prompt.md")),
+  );
+});
+test("Codex evidence reports the session's base instructions", () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nerfed-evidence-")),
+    started = Date.now();
+  try {
+    const dir = path.join(home, "sessions", ...new Date(started).toISOString().slice(0, 10).split("-"));
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, "rollout-test-thread-1.jsonl"),
+      JSON.stringify({ type: "session_meta", payload: { base_instructions: { text: MINIMAL_SYSTEM_PROMPT } } }) + "\n",
+    );
+    assert.equal(codexEvidence(home, "thread-1", started).baseInstructions, MINIMAL_SYSTEM_PROMPT);
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
   }
 });
 test("watchdog kills a stubborn parent and child process near the deadline", async () => {
@@ -245,7 +275,21 @@ test("packaged runner and transport complete a real five-task lifecycle using a 
     assert.equal(result.clock.durationSeconds, 200);
     assert.equal(result.clockEnforcement, "process-watchdog");
     assert.equal(result.execution.failure, null);
+    assert.equal(result.systemPrompt, "native");
     assert.equal(fs.existsSync(path.join(state, ".lock")), false);
+    const bare = await runAssessment({
+      agent: "codex",
+      model: "fake-model",
+      difficulty: "easy",
+      seconds: 200,
+      systemPrompt: "none",
+    });
+    assert.equal(bare.systemPrompt, "none");
+    assert.equal(bare.execution.failure, null);
+    assert.deepEqual(
+      listHistory(state, { systemPrompt: "none" }).runs.map((r) => r.runId),
+      [bare.runId],
+    );
   } finally {
     process.env.PATH = oldPath;
     if (oldState === undefined) delete process.env.AM_I_NERFED_HOME;

@@ -52,7 +52,8 @@ export function codexEvidence(home, threadId, startedAt) {
     const models = new Set(),
       efforts = new Set();
     let instructionFileMessages = 0,
-      tokenUsage = null;
+      tokenUsage = null,
+      baseInstructions = null;
     for (const line of fs
       .readFileSync(path.join(dir, name), "utf8")
       .split("\n")) {
@@ -63,7 +64,9 @@ export function codexEvidence(home, threadId, startedAt) {
         continue;
       }
       const payload = event.payload ?? {};
-      if (event.type === "turn_context") {
+      if (event.type === "session_meta")
+        baseInstructions = payload.base_instructions?.text ?? baseInstructions;
+      else if (event.type === "turn_context") {
         if (payload.model) models.add(payload.model);
         if (payload.effort) efforts.add(payload.effort);
       } else if (
@@ -83,6 +86,7 @@ export function codexEvidence(home, threadId, startedAt) {
       models: [...models],
       efforts: [...efforts],
       instructionFileMessages,
+      baseInstructions,
       reportedTokenUsage: tokenUsage,
     };
   }

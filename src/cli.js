@@ -29,7 +29,8 @@ const help = `am-i-nerfed — private reasoning assessments
 
   init [--agent codex|claude] [--model MODEL] [--effort LEVEL]
   run [--agent codex|claude] [--model MODEL] [--effort LEVEL]
-      [--difficulty easy|medium|hard] [--seconds N] [--verbose] [--json]
+      [--difficulty easy|medium|hard] [--seconds N] [--no-system-prompt]
+      [--verbose] [--json]
   start [--difficulty easy|medium|hard] [--seconds N]
         [--invocation skill|manual] [--agent NAME] [--provider NAME]
         [--model MODEL] [--effort LEVEL] [--verbose]
@@ -41,7 +42,8 @@ const help = `am-i-nerfed — private reasoning assessments
   history list [--model MODEL] [--effort LEVEL] [--provider NAME]
                [--agent NAME] [--invocation cli|skill|manual]
                [--difficulty LEVEL] [--seconds N] [--version VERSION]
-               [--task-version N] [--baseline ID] [--status STATUS] [--json]
+               [--task-version N] [--baseline ID] [--status STATUS]
+               [--system-prompt native|none] [--json]
   history destroy --yes
   reset --yes
   doctor [--init]
@@ -93,6 +95,7 @@ function printHistory(history) {
       "Model",
       "Effort",
       "Invocation",
+      "System",
       "Difficulty",
       "Score",
       "Seconds",
@@ -106,6 +109,7 @@ function printHistory(history) {
       r.model,
       r.effort,
       r.invocation,
+      r.systemPrompt ?? "—",
       r.difficulty,
       r.percent == null ? "—" : `${r.percent.toFixed(1)}%`,
       `${r.elapsedSeconds}/${r.durationSeconds}`,
@@ -309,12 +313,19 @@ export async function main(args = process.argv.slice(2)) {
     const opts = options(
       rest,
       [...settingFlags, ...assessmentFlags],
-      ["--json", "--verbose"],
+      ["--json", "--verbose", "--no-system-prompt"],
     );
     const verbose = Boolean(opts["--verbose"]);
+    const systemPrompt = opts["--no-system-prompt"] ? "none" : "native";
     delete opts["--verbose"];
     delete opts["--json"];
-    const chosen = { ...withLock(readSettings), ...settings(opts), verbose };
+    delete opts["--no-system-prompt"];
+    const chosen = {
+      ...withLock(readSettings),
+      ...settings(opts),
+      verbose,
+      systemPrompt,
+    };
     if (verbose)
       process.stderr.write(
         `Running ${chosen.difficulty ?? "medium"} assessment through ${chosen.agent ?? "unconfigured client"}…\n`,
@@ -396,6 +407,7 @@ export async function main(args = process.argv.slice(2)) {
     const map = {
       "--model": "model",
       "--effort": "effort",
+      "--system-prompt": "systemPrompt",
       "--provider": "provider",
       "--agent": "agent",
       "--invocation": "invocation",
