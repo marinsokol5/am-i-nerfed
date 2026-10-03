@@ -6,7 +6,8 @@ import { solveScores } from "./coordination.js";
 
 // Version 2 presents the same puzzles as version 1 with typed response shapes.
 // Version 3 regenerates hard knowledge scenario B when it repeats scenario A.
-export const TASK_BANK_VERSION = 3;
+// Version 4 randomizes knowledge protocol structure, not only bit labels.
+export const TASK_BANK_VERSION = 4;
 export const LEVELS = ["easy", "medium", "hard"];
 export const hash = (value) =>
   createHash("sha256")

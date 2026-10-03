@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { generateCompact } from "../src/compact.js";
 
 // Independent oracle: binary accessibility relations updated by edge deletion.
-// Parse only the public question; do not import its generator's epistemic engine.
+// Parse only the public question; do not import its generator's model.
 const atom = (i) => ["bit", i];
 const k = (a, p) => ["K", a, p];
 const not = (p) => ["!", p];
@@ -21,19 +21,31 @@ const tuple = (prompt, pattern) => {
   assert.ok(match, `Missing public parameters: ${pattern}`);
   return match[1].split(",").map(Number);
 };
+function parse(text) {
+  text = text.trim();
+  if (text.startsWith("NOT ")) return not(parse(text.slice(4)));
+  const op = /^([KW])_([ABC])\((.*)\)$/.exec(text);
+  if (op) {
+    const agent = "ABC".indexOf(op[2]),
+      child = parse(op[3]);
+    return op[1] === "K" ? k(agent, child) : w(agent, child);
+  }
+  if (text === "F") return f;
+  const bit = /^([abc]) = ([01])$/.exec(text);
+  assert.ok(bit, `Unparseable formula: ${text}`);
+  const b = atom("abc".indexOf(bit[1]));
+  return bit[2] === "1" ? b : not(b);
+}
 
 function oracle(prompt, difficulty, variant = "main") {
   const simple = difficulty === "easy";
-  const gates = tuple(
-    prompt,
-    simple
-      ? /Target bits: \(([01],[01],[01])\)/
-      : /Gates \(x,y,z\): \(([01],[01],[01])\)/,
+  const truthRows = new Set(
+    /one of: ([01]{3}(?:, [01]{3})*)\./.exec(prompt)[1].split(", "),
   );
   const actualBits = tuple(
     prompt,
     simple
-      ? /Actual initial bits \(a,b,c\): \(([01],[01],[01])\)/
+      ? /Actual bits \(a,b,c\): \(([01],[01],[01])\)/
       : /Actual initial bits \(a0,b0,c0\): \(([01],[01],[01])\)/,
   );
   const actualEvent =
@@ -49,11 +61,7 @@ function oracle(prompt, difficulty, variant = "main") {
           permutation[0],
         ];
       const bits = permutation.map((i) => initial[i]);
-      const fact = simple
-        ? (bits[0] === gates[0] && bits[1] === gates[1]) || bits[2] === gates[2]
-        : bits[0] !== gates[0] &&
-          Boolean(bits[1] ^ gates[1] ^ (Number(event === 2) & gates[2]));
-      return { initial, event, bits, fact };
+      return { initial, event, bits, fact: truthRows.has(bits.join("")) };
     }),
   );
   const actual = worlds.findIndex(
@@ -96,15 +104,12 @@ function oracle(prompt, difficulty, variant = "main") {
     );
   const stages = [structuredClone(relation)];
   const replies = [];
-  const reports = simple
-    ? [
-        [2, 0, w(2, f)],
-        [0, 1, w(0, f)],
-      ]
-    : [
-        [1, 2, k(1, not(w(0, f)))],
-        [0, 2, w(0, f)],
-      ];
+  const reports = [
+    ...prompt.matchAll(
+      /^\d\. ([ABC]) answers the Boolean question (.+); only ([ABC]) hears/gm,
+    ),
+  ].map(([, s, p, l]) => ["ABC".indexOf(s), "ABC".indexOf(l), parse(p)]);
+  assert.equal(reports.length, 2);
   for (const [speaker, listener, formula] of reports) {
     const values = worlds.map((_, i) => evaluate(formula, i, relation));
     for (let i = 0; i < worlds.length; i++)
@@ -131,35 +136,12 @@ function oracle(prompt, difficulty, variant = "main") {
     stages.push(structuredClone(relation));
   }
   const at = (stage, formula) => evaluate(formula, actual, stages[stage]);
-  const knowledge = simple
-    ? {
-        report_C: replies[0],
-        report_A: replies[1],
-        after_C_A_knows_F: at(1, k(0, f)),
-        final_B_knows_F: at(2, k(1, f)),
-        final_B_decides_F: at(2, w(1, f)),
-        final_C_knows_A_decides_F: at(2, k(2, w(0, f))),
-        final_A_knows_NOT_F: at(2, k(0, not(f))),
-        final_B_knows_a_is_1: at(2, k(1, atom(0))),
-      }
-    : {
-        report_B: replies[0],
-        report_A: replies[1],
-        physical_A_knows_F: at(0, k(0, f)),
-        physical_B_knows_current_B: at(0, w(1, atom(1))),
-        after_B_A_decides_C_decides_B_knows_current_B: at(
-          1,
-          w(0, w(2, k(1, atom(1)))),
-        ),
-        after_B_C_knows_whether_A_decides_F: at(1, w(2, w(0, f))),
-        after_B_C_knows_A_ignorant: at(1, k(2, not(w(0, f)))),
-        final_C_knows_whether_F: at(2, w(2, f)),
-        final_C_knows_whether_B_decides_F: at(2, w(2, w(1, f))),
-        after_B_B_knows_A_decides_C_knows_current_C: at(
-          1,
-          k(1, w(0, k(2, atom(2)))),
-        ),
-      };
+  const stageIndex = { physical: 0, "after reply 1": 1, final: 2 };
+  const knowledge = { report1: replies[0], report2: replies[1] };
+  for (const [, name, stage, formula] of prompt.matchAll(
+    /^- (q\d+): (physical|after reply 1|final): (.+)\.$/gm,
+  ))
+    knowledge[name] = at(stageIndex[stage], parse(formula));
   return { knowledge, replies, at, worldCount: worlds.length };
 }
 
@@ -175,22 +157,16 @@ for (const difficulty of ["easy", "normal"]) {
       assert.equal(reference.worldCount, difficulty === "easy" ? 8 : 24);
       const expected = { knowledge: reference.knowledge };
       if (difficulty === "normal") {
-        expected.counterfactual = {
-          public_event_C_knows_current_C: oracle(
-            generated.prompt,
-            difficulty,
-            "public_event",
-          ).at(2, w(2, atom(2))),
-          public_reports_C_decides_B_decides_F: oracle(
-            generated.prompt,
-            difficulty,
-            "public_reports",
-          ).at(2, w(2, w(1, f))),
-          forget_A_report_A: oracle(generated.prompt, difficulty, "forget_A")
-            .replies[1],
-          no_swap_report_B: oracle(generated.prompt, difficulty, "no_swap")
-            .replies[0],
-        };
+        expected.counterfactual = {};
+        for (const [, variant, question] of generated.prompt.matchAll(
+          /^- (public_event|public_reports|forget_A|no_swap): .*; answer (.+)\.$/gm,
+        )) {
+          const alt = oracle(generated.prompt, difficulty, variant),
+            reply = /^reply ([12])$/.exec(question);
+          expected.counterfactual[variant] = reply
+            ? alt.replies[reply[1] - 1]
+            : alt.at(2, parse(question.replace(/^final /, "")));
+        }
       }
       assert.deepEqual(generated.answer, expected);
       const values = Object.values(generated.answer).flatMap(Object.values);
@@ -198,9 +174,10 @@ for (const difficulty of ["easy", "normal"]) {
       assert.ok(values.some(Boolean) && values.some((value) => !value));
       answerVectors.add(JSON.stringify(generated.answer));
     }
+    // Structure varies per seed, so answer keys rarely repeat.
     assert.ok(
-      answerVectors.size >= 3,
-      "Seed variation must not collapse to one answer key",
+      answerVectors.size >= 24,
+      `Only ${answerVectors.size} distinct answer keys across 32 seeds`,
     );
   });
 
@@ -217,7 +194,7 @@ for (const difficulty of ["easy", "normal"]) {
       first.promptHash,
       generateCompact(`synthetic-other-${difficulty}`, difficulty).promptHash,
     );
-    assert.equal(first.generatorVersion, 1);
+    assert.equal(first.generatorVersion, 2);
     assert.equal(first.difficulty, difficulty);
     assert.equal(
       first.promptHash,

@@ -1,207 +1,274 @@
 import { createHash } from "node:crypto";
 import { randomSource } from "./random.js";
-import {
-  F,
-  K,
-  Kw,
-  Not,
-  current,
-  makeRun,
-  knowledgeAnswers,
-} from "./epistemic.js";
 
-// These cases intentionally omit the report ledger and policy search in hard.
-// Callers derive an independent secret stream for each difficulty before calling.
-const ZERO_CHECKS = { R0: 0, D5: 0, R14: 0, D7: 0 };
+// Knowledge protocols over a finite perfect-recall partition model. Every
+// structural choice (F's truth table, who speaks what to whom, and each
+// question) is drawn per seed and stated in the prompt, so answers vary in
+// structure rather than only in relabeled bits.
 const NOTATION = `K_X(P) means P is true in every world consistent with X's observations at that stage. W_X(P) means K_X(P) OR K_X(NOT P): X knows whether P, not necessarily that P is true. A false knowledge claim does not assert its negation is known. All agents reason perfectly, remember everything they observe, and commonly know this protocol. The actual world below is given to you only; it is not extra information for the agents.`;
+const AGENTS = "ABC";
 
-function easyModel(targets) {
-  const worlds = Array.from({ length: 8 }, (_, i) => [
-    i >> 2,
-    (i >> 1) & 1,
-    i & 1,
-  ]);
-  const facts = worlds.map(
-    ([a, b, c]) => (a === targets[0] && b === targets[1]) || c === targets[2],
-  );
-  const views = worlds.map((bits) => bits.map((bit) => [bit]));
-  const stages = [];
-  const snapshot = () => {
-    const signatures = views.map((view) => view.map((v) => JSON.stringify(v)));
-    function truth(formula, world) {
-      const [op, actor, child] = formula;
-      if (op === "fact") return facts[world];
-      if (op === "current") return Boolean(worlds[world][actor]);
-      if (op === "not") return !truth(actor, world);
-      if (op === "or") return truth(actor, world) || truth(child, world);
-      if (op === "knows")
-        return worlds.every(
-          (_, other) =>
-            signatures[world][actor] !== signatures[other][actor] ||
-            truth(child, other),
-        );
-      throw Error("Unknown easy-case formula");
-    }
-    return { truth };
-  };
-  stages.push(snapshot());
-  const replies = [];
-  for (const [speaker, listener, formula] of [
-    [2, 0, Kw(2, F)],
-    [0, 1, Kw(0, F)],
-  ]) {
-    const values = worlds.map((_, i) => stages.at(-1).truth(formula, i));
-    replies.push(values);
-    for (const actor of [speaker, listener])
-      worlds.forEach((_, i) => views[i][actor].push(values[i]));
-    stages.push(snapshot());
-  }
-  return { worlds, stages, replies };
+// Formulas: ["F"], ["bit", i], ["not", p], ["K", x, p], ["W", x, p].
+function render(p) {
+  if (p[0] === "F") return "F";
+  if (p[0] === "bit") return `${"abc"[p[1]]} = 1`;
+  if (p[0] === "not")
+    return p[1][0] === "bit" ? `${"abc"[p[1][1]]} = 0` : `NOT ${render(p[1])}`;
+  return `${p[0]}_${AGENTS[p[1]]}(${render(p[2])})`;
+}
+// Nested operators never repeat the same agent directly: K_A(K_A(P)) = K_A(P).
+function formula(r, depth, outer = -1) {
+  if (depth === 0) return r.choose([["F"], ["F"], ["bit", 0], ["bit", 1], ["bit", 2]]);
+  const agent = r.choose([0, 1, 2].filter((x) => x !== outer)),
+    child = formula(r, depth - 1, agent);
+  if (r.integer(2)) return ["W", agent, child];
+  return ["K", agent, r.integer(3) ? child : ["not", child]];
+}
+// A reply is the speaker's own knowledge claim, so the speaker can always make it.
+function reply(r, speaker) {
+  const child = formula(r, r.integer(2), speaker);
+  return r.integer(2)
+    ? ["W", speaker, child]
+    : ["K", speaker, r.integer(2) ? child : ["not", child]];
 }
 
-const EASY_QUERIES = [
-  ["after_C_A_knows_F", 1, K(0, F), "after C's reply: K_A(F)"],
-  ["final_B_knows_F", 2, K(1, F), "after both replies: K_B(F)"],
-  ["final_B_decides_F", 2, Kw(1, F), "after both replies: W_B(F)"],
-  [
-    "final_C_knows_A_decides_F",
-    2,
-    K(2, Kw(0, F)),
-    "after both replies: K_C(W_A(F))",
-  ],
-  ["final_A_knows_NOT_F", 2, K(0, Not(F)), "after both replies: K_A(NOT F)"],
-  [
-    "final_B_knows_a_is_1",
-    2,
-    K(1, current(0)),
-    "after both replies: K_B(a = 1)",
-  ],
-];
+function model(worlds, fact) {
+  const keys = (views) => views.map((own) => own.map((v) => v.join("|")));
+  function truth(p, stage) {
+    if (p[0] === "F") return fact;
+    if (p[0] === "bit") return worlds.map((w) => Boolean(w.current[p[1]]));
+    if (p[0] === "not") return truth(p[1], stage).map((v) => !v);
+    const values = truth(p[2], stage),
+      cells = new Map();
+    stage[p[1]].forEach((key, i) => {
+      const cell = cells.get(key) ?? { all: true, none: true };
+      if (values[i]) cell.none = false;
+      else cell.all = false;
+      cells.set(key, cell);
+    });
+    return stage[p[1]].map((key) => {
+      const cell = cells.get(key);
+      return p[0] === "K" ? cell.all : cell.all || cell.none;
+    });
+  }
+  // Each listed reply is heard by its speaker and listener, or by everyone.
+  function play(views, replies, everyone = false) {
+    const stages = [keys(views)],
+      values = [];
+    replies.forEach(([speaker, listener, p], step) => {
+      const v = truth(p, stages.at(-1));
+      values.push(v);
+      for (const agent of everyone ? [0, 1, 2] : [speaker, listener])
+        v.forEach((x, i) => views[agent][i].push(`r${step}=${x}`));
+      stages.push(keys(views));
+    });
+    return { stages, values };
+  }
+  return { truth, play };
+}
 
-function easy(random) {
-  const targets = Array.from({ length: 3 }, () => random.integer(2));
-  const run = easyModel(targets);
-  const keys = run.worlds.map((_, actual) => ({
-    report_C: run.replies[0][actual],
-    report_A: run.replies[1][actual],
-    ...Object.fromEntries(
-      EASY_QUERIES.map(([name, stage, formula]) => [
-        name,
-        run.stages[stage].truth(formula, actual),
-      ]),
-    ),
-  }));
-  const candidates = keys.flatMap((key, i) => {
-    const trueCount = Object.values(key).filter(Boolean).length;
-    return trueCount >= 1 && trueCount <= 7 ? [i] : [];
+const varies = (values) => values.some(Boolean) && values.some((v) => !v);
+function balanced(values, low, high) {
+  const share = values.filter(Boolean).length / values.length;
+  return share >= low && share <= high;
+}
+function factTable(r) {
+  const rows = r.shuffle([...Array(8).keys()]).slice(0, 2 + r.integer(5));
+  const set = new Set(rows);
+  return {
+    set,
+    text: rows
+      .sort((x, y) => x - y)
+      .map((i) => [i >> 2, (i >> 1) & 1, i & 1].join(""))
+      .join(", "),
+  };
+}
+const row = (bits) => (bits[0] << 2) | (bits[1] << 1) | bits[2];
+function pickReplies(r) {
+  return [0, 1].map(() => {
+    const speaker = r.integer(3),
+      listener = r.choose([0, 1, 2].filter((x) => x !== speaker));
+    return [speaker, listener, reply(r, speaker)];
   });
-  if (!candidates.length) throw Error("No balanced easy case");
-  const actual = random.choose(candidates);
-  const answer = { knowledge: keys[actual] };
-  const prompt = `Three agents A, B, C each have a fixed bit a, b, c. Every one of the eight triples is initially possible. Each agent privately sees only their own bit; there are no swaps or later bit observations.
+}
+const replyText = (replies) =>
+  replies
+    .map(
+      ([s, l, p], i) =>
+        `${i + 1}. ${AGENTS[s]} answers the Boolean question ${render(p)}; only ${AGENTS[l]} hears ${AGENTS[s]}'s reply.`,
+    )
+    .join("\n");
+// Distinct, world-dependent questions; a question true or false in every
+// world is answerable without following the protocol.
+function pickQuestions(r, count, stages, maxDepth, truthAt) {
+  const questions = [],
+    seen = new Set();
+  for (let tries = 0; questions.length < count && tries < 400; tries++) {
+    const stage = r.choose(stages),
+      p = formula(r, 1 + r.integer(maxDepth));
+    const values = truthAt(p, stage),
+      key = JSON.stringify(values);
+    if (!varies(values) || seen.has(key)) continue;
+    seen.add(key);
+    questions.push({ stage, p, values });
+  }
+  return questions.length === count ? questions : null;
+}
 
-Target bits: (${targets.join(",")}). Let F mean (a = ${targets[0]} AND b = ${targets[1]}) OR c = ${targets[2]}.
+function easy(r) {
+  for (let attempt = 0; attempt < 500; attempt++) {
+    const worlds = Array.from({ length: 8 }, (_, i) => {
+      const bits = [i >> 2, (i >> 1) & 1, i & 1];
+      return { initial: bits, current: bits };
+    });
+    const table = factTable(r),
+      fact = worlds.map((w) => table.set.has(row(w.current)));
+    const m = model(worlds, fact),
+      replies = pickReplies(r);
+    const views = [0, 1, 2].map((a) => worlds.map((w) => [`own=${w.initial[a]}`]));
+    const run = m.play(views, replies);
+    if (!run.values.every(varies)) continue;
+    const questions = pickQuestions(r, 6, [1, 2], 2, (p, s) =>
+      m.truth(p, run.stages[s]),
+    );
+    if (!questions) continue;
+    const candidates = worlds.flatMap((_, i) =>
+      balanced([...run.values, ...questions.map((q) => q.values)].map((v) => v[i]), 0.25, 0.75)
+        ? [i]
+        : [],
+    );
+    if (!candidates.length) continue;
+    const actual = r.choose(candidates);
+    const answer = {
+      knowledge: {
+        report1: run.values[0][actual],
+        report2: run.values[1][actual],
+        ...Object.fromEntries(questions.map((q, i) => [`q${i + 1}`, q.values[actual]])),
+      },
+    };
+    const stageName = ["", "after reply 1", "final"];
+    const prompt = `Three agents A, B, C each have a fixed bit a, b, c. Every one of the eight triples is initially possible. Each agent privately sees only their own bit; there are no swaps or later bit observations.
+
+F is true exactly when (a,b,c), written abc, is one of: ${table.text}.
 
 ${NOTATION}
 
 Two mandatory replies happen in order:
-1. C answers the Boolean question W_C(F); only A hears C's reply.
-2. A then answers the Boolean question W_A(F); only B hears A's reply.
-Speakers remember their own replies. Everyone knows who hears each reply and that both replies happen. Nobody else hears the value; an unheard reply is not a public announcement. Replies are recomputed after each update.
+${replyText(replies)}
+Speakers remember their own replies. Everyone knows who hears each reply and that both replies happen. Nobody else hears the value; an unheard reply is not a public announcement. Each reply uses knowledge immediately before it.
 
-Actual initial bits (a,b,c): (${run.worlds[actual].join(",")}).
+Actual bits (a,b,c): (${worlds[actual].initial.join(",")}).
 
-report_C and report_A are the two spoken replies. The other fields ask:
-${EASY_QUERIES.map(([name, , , description]) => `- ${name}: ${description}.`).join("\n")}`;
-  return { prompt, answer };
+Stages: after reply 1 = immediately after the first reply; final = after both replies. report1 and report2 are the two spoken replies. The other fields ask:
+${questions.map((q, i) => `- q${i + 1}: ${stageName[q.stage]}: ${render(q.p)}.`).join("\n")}`;
+    return { prompt, answer };
+  }
+  throw Error("No balanced easy case");
 }
 
-const NORMAL_DESCRIPTIONS = [
-  ["physical_A_knows_F", "physical: K_A(F)"],
-  ["physical_B_knows_current_B", "physical: W_B(b = 1)"],
-  [
-    "after_B_A_decides_C_decides_B_knows_current_B",
-    "after B: W_A(W_C(K_B(b = 1)))",
-  ],
-  ["after_B_C_knows_whether_A_decides_F", "after B: W_C(W_A(F))"],
-  ["after_B_C_knows_A_ignorant", "after B: K_C(NOT W_A(F))"],
-  ["final_C_knows_whether_F", "final: W_C(F)"],
-  ["final_C_knows_whether_B_decides_F", "final: W_C(W_B(F))"],
-  [
-    "after_B_B_knows_A_decides_C_knows_current_C",
-    "after B: K_B(W_A(K_C(c = 1)))",
-  ],
-];
-
-function normal(random) {
-  const gates = Array.from({ length: 3 }, () => random.integer(2));
-  const parameters = {
-    offsets: [...gates, 0],
-    parity_offset: 0,
-    mode_offset: 0,
-  };
-  const run = makeRun(ZERO_CHECKS, parameters);
-  const candidates = run.histories.flatMap((_, i) => {
-    const trueCount = Object.values(knowledgeAnswers(run, i)).filter(
-      Boolean,
-    ).length;
-    return trueCount >= 3 && trueCount <= 7 ? [i] : [];
-  });
-  if (!candidates.length) throw Error("No balanced normal case");
-  const actual = random.choose(candidates);
-  const { initial, event } = run.histories[actual];
-  const counterfactual = {};
-  for (const variant of [
-    "public_event",
-    "public_reports",
-    "forget_A",
-    "no_swap",
-  ]) {
-    const alternate = makeRun(ZERO_CHECKS, parameters, variant);
-    const index = alternate.histories.findIndex(
-      (h) =>
-        h.event === (variant === "no_swap" ? 0 : event) &&
-        h.initial.every((bit, i) => bit === initial[i]),
+const VARIANTS = {
+  public_event:
+    "e is announced to everyone at the physical stage instead of only to B",
+  public_reports: "both replies are heard by everyone",
+  forget_A:
+    "A never sees a0 (instead of losing memory after seeing it); A still sees a after the event",
+  no_swap:
+    "only e=0 is possible, commonly known from the start, so the universe has eight histories",
+};
+function normalWorlds(variant) {
+  return Array.from({ length: 8 }, (_, bits) => bits).flatMap((bits) =>
+    (variant === "no_swap" ? [0] : [0, 1, 2]).map((event) => {
+      const initial = [bits >> 2, (bits >> 1) & 1, bits & 1],
+        current = [...initial];
+      if (event) [current[0], current[event]] = [current[event], current[0]];
+      return { initial, event, current };
+    }),
+  );
+}
+function normalRun(table, replies, variant = "main") {
+  const worlds = normalWorlds(variant),
+    m = model(worlds, worlds.map((w) => table.set.has(row(w.current))));
+  const views = [0, 1, 2].map((a) =>
+    worlds.map((w) => {
+      const own = a === 0 && variant === "forget_A" ? [] : [`own=${w.initial[a]}`];
+      if (a === 1 || variant === "public_event") own.push(`e=${w.event}`);
+      if (a === 0) own.push(`now=${w.current[0]}`);
+      return own;
+    }),
+  );
+  return { worlds, m, run: m.play(views, replies, variant === "public_reports") };
+}
+function normal(r) {
+  for (let attempt = 0; attempt < 500; attempt++) {
+    const table = factTable(r),
+      replies = pickReplies(r);
+    const { worlds, m, run } = normalRun(table, replies);
+    if (!run.values.every(varies)) continue;
+    const questions = pickQuestions(r, 8, [0, 1, 2], 3, (p, s) =>
+      m.truth(p, run.stages[s]),
     );
-    if (variant === "public_event")
-      counterfactual.public_event_C_knows_current_C = alternate.stages
-        .at(-1)
-        .truth(Kw(2, current(2)))[index];
-    if (variant === "public_reports")
-      counterfactual.public_reports_C_decides_B_decides_F = alternate.stages
-        .at(-1)
-        .truth(Kw(2, Kw(1, F)))[index];
-    if (variant === "forget_A")
-      counterfactual.forget_A_report_A = alternate.answers[1][index];
-    if (variant === "no_swap")
-      counterfactual.no_swap_report_B = alternate.answers[0][index];
-  }
-  const answer = {
-    knowledge: knowledgeAnswers(run, actual),
-    counterfactual,
-  };
-  const prompt = `Three agents A, B, C initially have bits (a0,b0,c0). All eight triples and all three events are possible, independently: e=0 does nothing; e=1 swaps A's and B's bits; e=2 swaps A's and C's bits. Thus there are 24 possible initial-triple/event histories. Bits after the event are (a,b,c). Each agent initially sees only their own bit. After the event only A privately sees their current bit, and only B privately learns e. C gets no new observation. There are no other observations.
+    if (!questions) continue;
+    // Each counterfactual asks a reply or a final-stage question whose
+    // answer depends on the world within that variant.
+    const counterfactuals = Object.keys(VARIANTS).map((variant) => {
+      const alt = normalRun(table, replies, variant);
+      for (let tries = 0; tries < 100; tries++) {
+        const kind = r.integer(3);
+        const p = kind < 2 ? null : formula(r, 1 + r.integer(2));
+        const values = p ? alt.m.truth(p, alt.run.stages[2]) : alt.run.values[kind];
+        if (varies(values)) return { variant, kind, p, alt, values };
+      }
+      return null;
+    });
+    if (counterfactuals.includes(null)) continue;
+    const candidates = worlds.flatMap((w, i) => {
+      const values = [...run.values, ...questions.map((q) => q.values)].map((v) => v[i]);
+      for (const c of counterfactuals) {
+        const j = c.alt.worlds.findIndex(
+          (x) =>
+            x.event === (c.variant === "no_swap" ? 0 : w.event) &&
+            x.initial.every((bit, k) => bit === w.initial[k]),
+        );
+        values.push(c.values[j]);
+      }
+      return balanced(values, 0.3, 0.7) ? [{ i, values }] : [];
+    });
+    if (!candidates.length) continue;
+    const { i: actual, values } = r.choose(candidates);
+    const names = ["report1", "report2", ...questions.map((_, i) => `q${i + 1}`)];
+    const answer = {
+      knowledge: Object.fromEntries(names.map((name, i) => [name, values[i]])),
+      counterfactual: Object.fromEntries(
+        counterfactuals.map((c, i) => [c.variant, values[names.length + i]]),
+      ),
+    };
+    const { initial, event } = worlds[actual];
+    const stageName = ["physical", "after reply 1", "final"];
+    const prompt = `Three agents A, B, C initially have bits (a0,b0,c0). All eight triples and all three events are possible, independently: e=0 does nothing; e=1 swaps A's and B's bits; e=2 swaps A's and C's bits. Thus there are 24 possible initial-triple/event histories. Bits after the event are (a,b,c). Each agent initially sees only their own bit. After the event only A privately sees their current bit, and only B privately learns e. C gets no new observation. There are no other observations.
 
-Gates (x,y,z): (${gates.join(",")}). F is the Boolean proposition (a XOR x) AND (b XOR y XOR ([e=2] AND z)); [e=2] is 1 when e=2 and 0 otherwise. XOR is addition modulo two, and bits 1/0 mean true/false.
+F is true exactly when the post-event bits (a,b,c), written abc, are one of: ${table.text}.
 
 ${NOTATION}
 
 After the physical observations, two mandatory Boolean replies occur:
-1. B answers K_B(NOT W_A(F)); only C hears B's reply.
-2. A then answers W_A(F); only C hears A's reply.
-Speakers remember their own replies. Everyone knows who hears each reply and that both replies happen. Nobody else hears the value. An unheard reply is not a public announcement: retain histories with both possible values for nonlisteners. Evaluate each reply using knowledge immediately before it, then update only the speaker and listener's observations. In particular, B's false reply does not mean B knows that A knows whether F.
+${replyText(replies)}
+Speakers remember their own replies. Everyone knows who hears each reply and that both replies happen. Nobody else hears the value. An unheard reply is not a public announcement: retain histories with both possible values for nonlisteners. Evaluate each reply using knowledge immediately before it, then update only the speaker and listener's observations.
 
 Actual initial bits (a0,b0,c0): (${initial.join(",")}); actual event e=${event}.
 
-Stages: physical = after bit/event observations, before replies; after B = immediately after B's reply; final = after both replies. Every occurrence of a, b, c means the current post-event bit. report_B and report_A are the two spoken replies. The other fields mean:
-${NORMAL_DESCRIPTIONS.map(([name, description]) => `- ${name}: ${description}.`).join("\n")}
+Stages: physical = after bit/event observations, before replies; after reply 1 = immediately after the first reply; final = after both replies. Every occurrence of a, b, c means the current post-event bit. report1 and report2 are the two spoken replies. The other fields mean:
+${questions.map((q, i) => `- q${i + 1}: ${stageName[q.stage]}: ${render(q.p)}.`).join("\n")}
 
-For each counterfactual, restart the entire protocol independently with the same actual initial bits and event, except where changed below. All agents commonly know the changed rule from the start. Recompute both replies and every nested knowledge claim; do not carry over factual-world reply values.
-- public_event_C_knows_current_C: e is announced to everyone at the physical stage; answer final W_C(c = 1).
-- public_reports_C_decides_B_decides_F: both replies are heard by everyone; answer final W_C(W_B(F)).
-- forget_A_report_A: A never sees a0 (instead of losing memory after seeing it); A still sees a after the event. Answer A's second reply.
-- no_swap_report_B: only e=0 is possible, commonly known from the start, so the universe has eight histories and F uses e=0. Answer B's first reply.`;
-  return { prompt, answer };
+For each counterfactual, restart the entire protocol independently with the same actual initial bits and event (e=0 for no_swap), except where changed below. All agents commonly know the changed rule from the start. Recompute both replies and every nested knowledge claim; do not carry over factual-world reply values.
+${counterfactuals
+  .map(
+    (c) =>
+      `- ${c.variant}: ${VARIANTS[c.variant]}; answer ${c.p ? `final ${render(c.p)}` : `reply ${c.kind + 1}`}.`,
+  )
+  .join("\n")}`;
+    return { prompt, answer };
+  }
+  throw Error("No balanced normal case");
 }
 
 export function generateCompact(seed, difficulty) {
@@ -211,7 +278,7 @@ export function generateCompact(seed, difficulty) {
     randomSource(seed),
   );
   return {
-    generatorVersion: 1,
+    generatorVersion: 2,
     difficulty,
     prompt,
     answer,
