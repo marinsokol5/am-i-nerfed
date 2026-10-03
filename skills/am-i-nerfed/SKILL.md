@@ -21,6 +21,7 @@ Note about execution environment:
 - Solve by reasoning only -> no code calculations, browsing, file inspection, prior answers, outside models or delegation. Only the assessment CLI is permitted for retrieving questions, answering and checking time.
 - No correctness feedback is returned while an assessment is active. 
 - It's highly recommended to attempt all 5 tasks before spending the remaining time on refinements. Use short reasoning passes and frequent partial answers to avoid losing work.
+- There is no reward for finishing the assessment early or for stopping work with the timer still ticking. Saved answers are kept; being mid-thought when time runs out costs nothing.
 
 ## Assessment
 
@@ -29,5 +30,4 @@ Note about execution environment:
 2. Retrieve individual task and see currently submitted answer -> `am-i-nerfed question --run <RUN-ID> --task <TASK-ID>`. Answer in the shape of `response`; each value is a JSON type (boolean, integer, string) or a name defined in `types`.
 3. Submit a new answer or revise existing -> `am-i-nerfed answer --run <RUN-ID> --task <TASK-ID> --json '<JSON>'`. Quoted stdin or `--file` is also accepted if needed for transport; do not use files to calculate answers. Partial JSON objects merge recursively, omitted fields preserve prior work.
 4. You can check timer at any moment through `am-i-nerfed timer --run <RUN-ID>`.
-5. Once the deadline has passed, stop reasoning and obtain the evaluation result through `am-i-nerfed status --run <RUN-ID>`. Late answers/revisions are rejected. Optionally, if you are 100% certain in your answers you can call `am-i-nerfed finish --run <RUN-ID>` to finish early, but feel free to instead spend the remaining time challenging your assumptions and double-checking your existing answers. 
-6. Final score is at `result.percent` and solving time is at `clock.elapsedSeconds`. Communicate both back to the user.
+5. Once the deadline has passed, stop reasoning and obtain the evaluation result through `am-i-nerfed status --run <RUN-ID>`. Late answers/revisions are rejected. Final score is at `result.percent`; communicate it back to the user.
