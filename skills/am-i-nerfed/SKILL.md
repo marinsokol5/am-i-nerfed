@@ -1,20 +1,32 @@
 ---
 name: am-i-nerfed
-description: Run a private timed reasoning assessment using the current agent and conversation context. Use when the user asks to run Am I nerfed or assess their current agent. Works wherever shell commands are available.
+description: Run a timed reasoning assessment on the current agent.
 metadata:
-  version: "0.5.5"
+  version: "0.7.0"
 ---
 
-Assess yourself using the current model, reasoning effort, instructions, and conversation. Do not launch a fresh model, use a subagent, or call `am-i-nerfed run`. That command is the separate clean CLI mode.
+## Prerequisites
 
-Accept difficulty `easy`, `medium`, or `hard` (default `medium`) and an optional total allowance in positive whole seconds (default `120`; for example, `$am-i-nerfed medium 200` or `/am-i-nerfed medium 200`). These select the puzzle level and shared time budget, not your reasoning effort. Each run has five tasks. Reject invalid arguments before starting.
+- The `am-i-nerfed` CLI is installed and available in the current shell -> run `am-i-nerfed --version` to verify; otherwise otherwise ask user to run `npm install -g am-i-nerfed` themselves and restart the session.
+- The question bank of `am-i-nerfed` has been created -> run `am-i-nerfed doctor --init` and check that it prints back `true`; otherwise ask user to run `am-i-nerfed init` themselves.
+- Skill arguments -> difficulty <DIFFICULTY>: `easy`, `medium`, or `hard` (default `medium`) and a total allowance in positive whole seconds <TIME> (default `120`); for example `/am-i-nerfed medium 200` (`/am-i-nerfed <DIFFICULTY> <TIME>`). These select the puzzle difficulty level and time budget, not your reasoning effort. Reject invalid arguments before starting.
 
-A portable skill cannot interrupt its host model during reasoning. Briefly state that this is an in-context assessment with an enforced answer deadline, but no guaranteed computation cutoff. Do not promise a hard token budget or that your process will be killed. If the user requires a hard computation cutoff, explain that they need the supervised CLI mode and do not start an in-context attempt instead.
+Note about execution environment:
+- An agent skill cannot interrupt its host model during reasoning. Briefly state that this is an in-context assessment with an enforced answer deadline, but no guaranteed computation cutoff. Do not promise a hard token budget or that your thinking process will be killed. If the user requires a hard computation cutoff, explain that they need to run the supervised CLI mode (`am-i-nerfed run`) themselves. 
 
-1. Call `am-i-nerfed start --invocation skill --difficulty medium --seconds 120`, substituting requested difficulty/time. Add `--agent`, `--provider`, `--model`, and `--effort` only when actually known; omit unknown values. This metadata is self-reported. Retain the exact returned run ID and five task IDs. If not initialized, tell the user to run `am-i-nerfed init`; do not initialize or reset during the assessment.
-2. Retrieve tasks individually with `am-i-nerfed question --run ID --task TASK_ID`. Read the returned clock and answer schema. Solve by reasoning yourself: no code calculations, browsing, file inspection, prior answers, outside models or delegation. Only the assessment CLI is permitted for retrieving questions, answering and checking time. Existing conversation context remains part of what is measured; acknowledge known prior exposure to these puzzles.
-3. Submit early and revise through `am-i-nerfed answer --run ID --task TASK_ID --json '<JSON>'`. Quoted stdin or `--file` is also accepted if needed for transport; do not use files to calculate answers. Partial JSON objects merge recursively: omitted fields preserve prior work, explicit null clears a field, arrays/scalars replace. Unknowns may be null. Every accepted answer, question, and status response includes elapsed/remaining time. No correctness feedback is returned while active.
-4. Attempt all five tasks before spending the remaining time on refinements. Use short reasoning passes and frequent partial answers to avoid losing work. `am-i-nerfed status --run ID` checks the clock without changing an answer. Once the deadline has passed, stop reasoning and obtain the result. Late answers are rejected. Do not start another run to extend the budget.
-5. **`finish` is optional.** Saved answers freeze at the deadline without it; you do not need to reserve time for a finish command. If you have answers for all five tasks with time remaining, feel free to challenge your assumptions or double-check your answers. You do not need to stop before time runs out. At or after the deadline, call `am-i-nerfed status --run ID` to obtain the final score. Call `am-i-nerfed finish --run ID` only when you deliberately choose to end early; do not append it automatically to your last answer. An early finish is final, with no reminder or second attempt. If you voluntarily end your turn before the deadline, finish that run first. Report total and task scores, time used, and that this was a skill run in the existing context. Do not reveal answer keys or interpret the percentage as universal intelligence.
+## Rules
 
-Correct only syntax after invalid JSON. Retry a failed delivery with the same run ID and exact answer, at most twice, and heed the returned deadline. If blocked, preserve the run ID and report the blockage. Never reset, borrow another run, or claim a grade you did not receive. The user can inspect past results with `am-i-nerfed history list --invocation skill`; do not inspect history while solving.
+- You have limited <TIME> to complete, as well as you can, 5 <DIFFICULTY> tasks; timer starts with `am-i-nerfed start` and is exposed to you at any moment through `am-i-nerfed timer --run <RUN-ID>`.
+- Solve the tasks inside of the current conversation -> using the current model, reasoning effort, instructions, and prior conversation. Do not launch a fresh model, do not use a subagent, do not call `am-i-nerfed run`.
+- Solve by reasoning only -> no code calculations, browsing, file inspection, prior answers, outside models or delegation. Only the assessment CLI is permitted for retrieving questions, answering and checking time.
+- No correctness feedback is returned while an assessment is active. 
+- It's highly recommended to attempt all 5 tasks before spending the remaining time on refinements. Use short reasoning passes and frequent partial answers to avoid losing work.
+
+## Assessment
+
+1. Start the assessment -> `am-i-nerfed start --invocation skill --difficulty <DIFFICULTY>/medium --seconds <TIME>/120`; substituting requested difficulty/time. Add `--agent` (`codex`, `claude`, `hermes`, ...), `--provider` (`openai`, `anthropic`, `nous`, ...), `--model` (`gpt-6-astra`, `claude-opus-5-5`, ...), and `--effort` (`low`, `medium`, `high`, ...) only when actually known, omitting unknown values; this metadata is self-reported.
+    a) Retain the exact returned run ID (<RUN-ID>) and five task IDs (<TASK-ID>).
+2. Retrieve individual task and see currently submitted answer -> `am-i-nerfed question --run <RUN-ID> --task <TASK-ID>`. 
+3. Submit a new answer or revise existing -> `am-i-nerfed answer --run <RUN-ID> --task <TASK-ID> --json '<JSON>'`. Quoted stdin or `--file` is also accepted if needed for transport; do not use files to calculate answers. Partial JSON objects merge recursively, omitted fields preserve prior work.
+4. You can check timer at any moment through `am-i-nerfed timer --run <RUN-ID>`.
+5. Once the deadline has passed, stop reasoning and obtain the evaluation result through `am-i-nerfed status --run <RUN-ID>`. Late answers/revisions are rejected. Optionally, if you are 100% certain in your scores you can call `am-i-nerfed finish --run ID` to finish early, but feel free to instead spend the remaining time challenging your assumptions and double-checking your existing answers. Final score is at `result.percent`.
