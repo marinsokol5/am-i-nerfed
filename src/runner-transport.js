@@ -1,13 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
-import { withLock, active, writeJSON, readJSON } from "./storage.js";
-import { startAssessment, assessmentAction } from "./assessment.js";
+import { withLock, active, stateRoot, writeJSON, readJSON } from "./storage.js";
+import { startAssessment, assessmentAction, assessmentTimer } from "./assessment.js";
 
 export function transport(configPath, args = process.argv.slice(2)) {
   const config = readJSON(configPath),
     [action, ...rest] = args;
-  if (!["start", "question", "answer", "status", "finish"].includes(action))
-    throw Error("Use start, question, answer, status or finish");
+  if (!["start", "question", "answer", "status", "timer", "finish"].includes(action))
+    throw Error("Use start, question, answer, status, timer or finish");
   const opts = {};
   for (let i = 0; i < rest.length; i += 2) {
     if (
@@ -28,6 +28,11 @@ export function transport(configPath, args = process.argv.slice(2)) {
     throw Error("Answer exceeds 1 MiB");
   const patch = action === "answer" ? JSON.parse(opts["--json"]) : undefined;
   process.env.AM_I_NERFED_HOME = config.state;
+  if (action === "timer") {
+    const run = readJSON(path.join(path.dirname(configPath), "run.json"));
+    process.stdout.write(JSON.stringify(assessmentTimer(active(stateRoot()), run.runId)) + "\n");
+    return;
+  }
   // The CLI operation is short and atomic. A cooperative termination finishes
   // its lock cleanup; the runner never extends the answer deadline.
   process.on("SIGTERM", () => {});

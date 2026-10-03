@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { generateTaskBank, hash, LEVELS } from "./task-bank.js";
-import { privateDirectory, readJSON, writeJSON } from "./storage.js";
+import { active, privateDirectory, readJSON, writeJSON } from "./storage.js";
 import { grade } from "./grading.js";
 import { durationSeconds as validateDuration } from "./duration.js";
 
@@ -27,6 +27,31 @@ function readBank(state) {
   )
     throw Error("Invalid frozen task bank");
   return bank;
+}
+// Readiness diagnostics must never generate a bank, create a run, or acquire
+// a filesystem lock. Only public metadata leaves this function.
+export function initializationStatus(root) {
+  if (!fs.existsSync(path.join(root, "current.json")))
+    return {
+      initialized: false,
+      initializationError: "Not initialized. Run am-i-nerfed init first.",
+    };
+  try {
+    const state = active(root),
+      bank = readBank(state);
+    return {
+      initialized: true,
+      baselineId: state.current.baselineId,
+      taskBankVersion: bank.taskBankVersion,
+      tasks: bank.tasks.length,
+    };
+  } catch {
+    // Do not expose JSON parser errors: they can contain private file content.
+    return {
+      initialized: false,
+      initializationError: "Local state is incomplete, unreadable, or invalid.",
+    };
+  }
 }
 export function assessmentPath(state, id) {
   if (typeof id !== "string" || !/^[0-9a-f]{8}-[0-9a-f-]{27}$/.test(id))
@@ -141,22 +166,7 @@ export function startAssessment(state, opts = {}, now) {
 export function assessmentAction(state, action, opts, time = Date.now) {
   if (!["question", "answer", "status", "finish"].includes(action))
     throw Error("Unknown assessment action");
-  const file = assessmentPath(state, opts.runId);
-  let record;
-  try {
-    record = readJSON(file);
-  } catch (e) {
-    if (e.code === "ENOENT")
-      throw Error(
-        "Run ID not found on the current baseline; retain the original ID and do not reset.",
-      );
-    throw e;
-  }
-  if (
-    record.id !== opts.runId ||
-    record.baselineId !== state.current.baselineId
-  )
-    throw Error("Run does not belong to this baseline");
+  const { file, record } = readAssessment(state, opts.runId);
   const closed = (receipt) =>
     action === "answer"
       ? {
@@ -229,6 +239,30 @@ export function assessmentAction(state, action, opts, time = Date.now) {
     taskId: task.id,
     revision: record.revision,
   };
+}
+export function assessmentTimer(state, runId, time = Date.now) {
+  const { record } = readAssessment(state, runId);
+  const { durationSeconds, elapsedSeconds, remainingSeconds } = clock(record, time());
+  return { durationSeconds, elapsedSeconds, remainingSeconds };
+}
+function readAssessment(state, runId) {
+  const file = assessmentPath(state, runId);
+  let record;
+  try {
+    record = readJSON(file);
+  } catch (e) {
+    if (e.code === "ENOENT")
+      throw Error(
+        "Run ID not found on the current baseline; retain the original ID and do not reset.",
+      );
+    throw e;
+  }
+  if (
+    record.id !== runId ||
+    record.baselineId !== state.current.baselineId
+  )
+    throw Error("Run does not belong to this baseline");
+  return { file, record };
 }
 // Runner metadata is outside solver-controlled answers. Failure removes the
 // score from history instead of masquerading as a reasoning failure.

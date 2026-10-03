@@ -198,7 +198,7 @@ export function permittedCommand(command) {
     return permittedCommand(tokens[2]);
   if (tokens.shift() !== "./assessment") return false;
   const action = tokens.shift();
-  if (["start", "status", "finish"].includes(action))
+  if (["start", "status", "timer", "finish"].includes(action))
     return tokens.length === 0;
   if (!["question", "answer"].includes(action)) return false;
   if (
@@ -457,7 +457,7 @@ export async function runAssessment(options) {
   fs.writeFileSync(path.join(work, "package.json"), '{"type":"module"}', {
     mode: 0o600,
   });
-  const prompt = `${EXAM_INSTRUCTIONS}\nYou have ${options.seconds ?? 120} seconds TOTAL for five ${options.difficulty ?? "medium"} tasks, measured from client launch. Call ./assessment start immediately to obtain the task IDs and remaining time.\nCommands:\n./assessment start\n./assessment question --task TASK_ID\n./assessment answer --task TASK_ID --json '{"knowledge":{}}'\n./assessment status\n./assessment finish\nUse each question's actual answer schema. Run one command at a time, exactly as above, without shell wrappers, pipelines or other syntax. Start once and retain the task IDs returned. Your process will be stopped at the deadline.\n`;
+  const prompt = `${EXAM_INSTRUCTIONS}\nYou have ${options.seconds ?? 120} seconds TOTAL for five ${options.difficulty ?? "medium"} tasks, measured from client launch. Call ./assessment start immediately to obtain the task IDs and remaining time.\nCommands:\n./assessment start\n./assessment question --task TASK_ID\n./assessment answer --task TASK_ID --json '{"knowledge":{}}'\n./assessment status\n./assessment timer\n./assessment finish\nThe timer command returns only durationSeconds, elapsedSeconds, and remainingSeconds. Use each question's actual answer schema. Run one command at a time, exactly as above, without shell wrappers, pipelines or other syntax. Start once and retain the task IDs returned. Your process will be stopped at the deadline.\n`;
   const deadline = () => launchedAt + (options.seconds ?? 120) * 1000;
   let execution,
     seenEvents = 0;

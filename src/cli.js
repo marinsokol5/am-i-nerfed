@@ -5,6 +5,7 @@ import { spawnSync } from "node:child_process";
 import { createInterface } from "node:readline/promises";
 import {
   withLock,
+  stateRoot,
   privateDirectory,
   writeJSON,
   readJSON,
@@ -13,8 +14,10 @@ import {
 import {
   appVersion,
   prepareBank,
+  initializationStatus,
   startAssessment,
   assessmentAction,
+  assessmentTimer,
   listHistory,
 } from "./assessment.js";
 import { runAssessment } from "./runner.js";
@@ -31,13 +34,14 @@ const help = `am-i-nerfed — private reasoning assessments
   question --run ID --task ID
   answer --run ID --task ID [--json JSON | --file PATH | stdin]
   status --run ID
+  timer --run ID
   finish --run ID
   history list [--model MODEL] [--effort LEVEL] [--provider NAME]
                [--agent NAME] [--invocation cli|skill|manual]
                [--difficulty LEVEL] [--seconds N] [--version VERSION]
                [--task-version N] [--baseline ID] [--status STATUS] [--json]
   reset --yes
-  doctor
+  doctor [--init]
   skill install [--yes] [--agent NAME] [--global|--project] [--copy]
   --version
 
@@ -196,7 +200,20 @@ export async function main(args = process.argv.slice(2)) {
     return;
   }
   if (command === "doctor") {
-    options(rest);
+    const opts = options(rest, [], ["--init"]);
+    let initialization;
+    try {
+      initialization = initializationStatus(stateRoot());
+    } catch {
+      initialization = {
+        initialized: false,
+        initializationError: "The configured local state directory is unavailable or invalid.",
+      };
+    }
+    if (opts["--init"]) {
+      print(initialization.initialized);
+      return;
+    }
     const clients = ["codex", "claude"].map((agent) => {
       const result = spawnSync(agent, ["--version"], {
         encoding: "utf8",
@@ -210,9 +227,10 @@ export async function main(args = process.argv.slice(2)) {
     });
     print({
       appVersion: appVersion(),
+      ...initialization,
       clients,
       supervisedRunner: process.platform !== "win32",
-      note: "No model calls were made. Authentication was not tested.",
+      note: "Local state was checked without modification or starting an assessment. No model calls were made. Authentication was not tested.",
     });
     return;
   }
@@ -349,6 +367,12 @@ export async function main(args = process.argv.slice(2)) {
     );
     print(result);
     if (result.accepted === false) process.exitCode = 1;
+    return;
+  }
+  if (command === "timer") {
+    const opts = options(rest, ["--run"]);
+    if (!opts["--run"]) throw Error("Retain the --run ID returned by start");
+    print(assessmentTimer(active(stateRoot()), opts["--run"]));
     return;
   }
   if (command === "history") {
