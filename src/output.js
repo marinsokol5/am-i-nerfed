@@ -42,6 +42,9 @@ export function formatQuestion(response, taskId) {
       Task: response.prompt.replace(
         /^Am I nerfed: (?:easy|medium|hard), (?:hats|cards|knowledge|tracking|coordination)\r?\n\r?\n/,
         "",
+      ).replace(
+        /\r?\n\r?\nReason yourself without code, browsing, private-file inspection or other agents\. Question retrieval, partial answers and clock checks through the assessment CLI are permitted transport operations\.$/,
+        "",
       ),
       draft: response.draft,
       remainingSeconds: response.clock.remainingSeconds,

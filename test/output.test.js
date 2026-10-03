@@ -80,7 +80,7 @@ test("completed status keeps scores compact and normalizes legacy receipts witho
   assert.equal("bankHash" in history, false);
 });
 
-test("question returns only Task, draft, task ID and remaining seconds, without the branded heading", t => {
+test("question returns only task content, draft, task ID and remaining seconds, without wrapper instructions", t => {
   const f = fixture(t), start = f.json("start", "--seconds", "500");
   const taskId = start.tasks[0].id;
   const question = f.json("question", "--run", start.runId, "--task", taskId);
@@ -88,10 +88,11 @@ test("question returns only Task, draft, task ID and remaining seconds, without 
   assert.equal(question.taskId, taskId);
   assert.equal(typeof question.Task, "string");
   assert.doesNotMatch(question.Task, /^Am I nerfed:/);
+  assert.doesNotMatch(question.Task, /Reason yourself without code/);
   const bankFile = path.join(f.home, "baselines", start.baselineId, "task-bank.json");
   const bankBefore = fs.readFileSync(bankFile, "utf8");
   const storedPrompt = JSON.parse(bankBefore).tasks.find(task => task.id === taskId).prompt;
-  assert.equal(question.Task, storedPrompt.slice(storedPrompt.indexOf("\n\n") + 2));
+  assert.equal(question.Task, storedPrompt.slice(storedPrompt.indexOf("\n\n") + 2, storedPrompt.lastIndexOf("\n\n")));
   assert.ok(question.remainingSeconds > 0 && question.remainingSeconds <= 500);
   assert.equal(question.draft, null);
   const draft = { saved: "answer data", bankHash: "answer data" };
@@ -138,7 +139,7 @@ process.stdin.on('end',()=>{
   const call=(args)=>{const r=cp.spawnSync('./assessment',args,{encoding:'utf8'});if(r.status)throw Error(r.stderr);return JSON.parse(r.stdout);};
   const started=call(['start']);
   const question=call(['question','--task',started.tasks[0].id]);
-  if(JSON.stringify(Object.keys(question))!==JSON.stringify(['taskId','Task','draft','remainingSeconds']) || question.Task.startsWith('Am I nerfed:'))throw Error('Question leaked run metadata');
+  if(JSON.stringify(Object.keys(question))!==JSON.stringify(['taskId','Task','draft','remainingSeconds']) || question.Task.startsWith('Am I nerfed:') || question.Task.includes('Reason yourself without code'))throw Error('Question leaked wrapper text or run metadata');
   const compact=call(['status']);
   const verbose=call(['status','--verbose']);
   if('taskBankHash' in compact || 'family' in compact.tasks[0] || !verbose.taskBankHash || !verbose.tasks[0].family)throw Error('Wrong native status projection');
