@@ -15,8 +15,8 @@ Requires Node.js 22.20 or newer. The package is not published yet. To try the wo
 
 ```bash
 npm install
-node bin/am-i-nerfed.js init --agent codex --model YOUR_MODEL --effort medium
-node bin/am-i-nerfed.js run
+node bin/am-i-nerfed.js init
+node bin/am-i-nerfed.js run --agent codex --model YOUR_MODEL --effort medium
 ```
 
 After a release is published:
