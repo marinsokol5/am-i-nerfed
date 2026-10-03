@@ -56,10 +56,10 @@ test("start, answer and status are compact by default; verbose restores metadata
   assert.equal("result" in active, false);
   assert.equal("result" in verbose, false);
   const finished = f.json("finish", "--run", start.runId);
-  assert.deepEqual(Object.keys(finished), [...compactKeys, "result"]);
+  assert.deepEqual(Object.keys(finished), [...compactKeys.slice(0, 4), "result"]);
   const late = f.exec("answer", "--run", start.runId, "--task", start.tasks[0], "--json", "null");
   assert.equal(late.status, 1);
-  assert.deepEqual(Object.keys(JSON.parse(late.stdout)), ["accepted", "reason", ...compactKeys, "result"]);
+  assert.deepEqual(Object.keys(JSON.parse(late.stdout)), ["accepted", "reason", ...compactKeys.slice(0, 4), "result"]);
 });
 
 test("completed status keeps scores compact and normalizes legacy receipts without rewriting them", t => {
@@ -74,7 +74,7 @@ test("completed status keeps scores compact and normalizes legacy receipts witho
   const before = fs.readFileSync(file, "utf8");
   const compact = f.json("status", "--run", start.runId);
   const verbose = f.json("status", "--run", start.runId, "--verbose");
-  assert.deepEqual(Object.keys(compact), [...compactKeys, "result"]);
+  assert.deepEqual(Object.keys(compact), [...compactKeys.slice(0, 4), "result"]);
   assert.deepEqual(Object.keys(compact.result), ["percent", "tasks"]);
   assert.deepEqual(Object.keys(compact.result.tasks[0]), ["id", "percent"]);
   assert.equal(compact.result.percent, verbose.result.percent);
@@ -175,7 +175,7 @@ process.stdin.on('end',()=>{
       assert.ok(run.clock.startedAt);
       assert.match(result.stderr, /Running/);
     } else {
-      assert.deepEqual(Object.keys(run), [...compactKeys, "result"]);
+      assert.deepEqual(Object.keys(run), [...compactKeys.slice(0, 4), "result"]);
       assert.deepEqual(Object.keys(run.clock), clockKeys);
       assert.equal(result.stderr, "");
     }

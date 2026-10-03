@@ -75,6 +75,8 @@ function options(args, values = [], booleans = []) {
 }
 const print = (value) =>
   process.stdout.write(JSON.stringify(value, null, 2) + "\n");
+// Assessment commands are read by agents: one line, no indentation tokens.
+const emit = (value) => process.stdout.write(JSON.stringify(value) + "\n");
 const text = (value) =>
   String(value ?? "unknown").replace(/[\u0000-\u001f\u007f]/g, " ");
 function printHistory(history) {
@@ -336,7 +338,7 @@ export async function main(args = process.argv.slice(2)) {
       throw Error(
         "Direct start uses skill or manual; use run for a supervised CLI assessment",
       );
-    print(
+    emit(
       formatStart(
         withLock((root) => startAssessment(active(root), settings(opts))),
         { verbose },
@@ -362,7 +364,7 @@ export async function main(args = process.argv.slice(2)) {
       }),
     );
     const verbose = Boolean(opts["--verbose"]);
-    print(
+    emit(
       command === "question"
         ? formatQuestion(result, opts["--task"])
         : command === "answer"
@@ -375,7 +377,7 @@ export async function main(args = process.argv.slice(2)) {
   if (command === "timer") {
     const opts = options(rest, ["--run"]);
     if (!opts["--run"]) throw Error("Retain the --run ID returned by start");
-    print(assessmentTimer(active(stateRoot()), opts["--run"]));
+    emit(assessmentTimer(active(stateRoot()), opts["--run"]));
     return;
   }
   if (command === "history") {

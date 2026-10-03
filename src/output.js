@@ -25,11 +25,13 @@ export function formatRun(run, { verbose = false } = {}) {
     status: full.status,
     difficulty: full.difficulty,
     clock: compactClock(full.clock),
-    tasks: full.tasks.map(({ id, submitted, filledFields }) => ({
-      id, submitted, filledFields,
-    })),
   };
-  if (full.result)
+  // Once scored, per-task results replace the submission progress list.
+  if (!full.result)
+    compact.tasks = full.tasks.map(({ id, submitted, filledFields }) => ({
+      id, submitted, filledFields,
+    }));
+  else
     compact.result = {
       percent: full.result.percent,
       tasks: full.result.tasks.map(({ id, percent }) => ({ id, percent })),
