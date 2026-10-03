@@ -5,7 +5,8 @@ import { hardCoordination } from "./hard-coordination.js";
 import { solveScores } from "./coordination.js";
 
 // Version 2 presents the same puzzles as version 1 with typed response shapes.
-export const TASK_BANK_VERSION = 2;
+// Version 3 regenerates hard knowledge scenario B when it repeats scenario A.
+export const TASK_BANK_VERSION = 3;
 export const LEVELS = ["easy", "medium", "hard"];
 export const hash = (value) =>
   createHash("sha256")
@@ -354,8 +355,23 @@ function knowledge(seed, level) {
     );
     return { prompt, answer, response: shape(flatten(answer), "boolean") };
   }
-  const first = generateCompact(derive(seed, "first"), "normal"),
-    second = generateCompact(derive(seed, "second"), "normal");
+  // Scenario B must differ from A in at least half its answers, otherwise
+  // the second protocol adds little beyond the first.
+  const first = generateCompact(derive(seed, "first"), "normal");
+  const differing = (b) =>
+    Object.entries(flatten(first.answer)).filter(
+      ([key, value]) => flatten(b.answer)[key] !== value,
+    ).length;
+  let second;
+  for (let attempt = 0; ; attempt++) {
+    if (attempt === 200) throw Error("Could not generate distinct scenarios.");
+    second = generateCompact(
+      derive(seed, attempt ? `second/${attempt}` : "second"),
+      "normal",
+    );
+    if (2 * differing(second) >= Object.keys(flatten(first.answer)).length)
+      break;
+  }
   const answer = {
     knowledge: {
       scenarioA: flatten(first.answer),

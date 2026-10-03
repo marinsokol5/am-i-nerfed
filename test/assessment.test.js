@@ -6,7 +6,11 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { flatten, generateTaskBank } from "../src/task-bank.js";
+import {
+  flatten,
+  generateTaskBank,
+  TASK_BANK_VERSION,
+} from "../src/task-bank.js";
 import {
   startAssessment,
   assessmentAction,
@@ -185,7 +189,7 @@ test("history separates invocation, difficulty, package and task versions, and s
       invocation: "skill",
       effort: "high",
       model: "m1",
-      taskBankVersion: "2",
+      taskBankVersion: String(TASK_BANK_VERSION),
       appVersion: b.appVersion,
     }).runs;
     assert.equal(filtered.length, 1);
@@ -338,7 +342,7 @@ test("arbitrary whole-second budgets retain their exact deadline and history ide
   }
 });
 
-test("starting a run upgrades a version 1 bank only when its answers regenerate identically", () => {
+test("starting a run upgrades an older bank only when its answers regenerate identically", () => {
   const legacy = structuredClone(bank);
   legacy.taskBankVersion = 1;
   for (const task of legacy.tasks) {
@@ -351,7 +355,7 @@ test("starting a run upgrades a version 1 bank only when its answers regenerate 
   try {
     fs.writeFileSync(file, JSON.stringify(legacy));
     const start = startAssessment(f.state, { difficulty: "easy" });
-    assert.equal(start.taskBankVersion, 2);
+    assert.equal(start.taskBankVersion, TASK_BANK_VERSION);
     assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")), bank);
     legacy.tasks[0].answer.knowledge.hats.A = "not-a-color";
     fs.writeFileSync(file, JSON.stringify(legacy));

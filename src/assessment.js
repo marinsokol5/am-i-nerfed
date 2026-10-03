@@ -24,8 +24,8 @@ export function prepareBank(state) {
   else upgradeBank(state, file);
   return readBank(state);
 }
-// Older banks are rewritten in the current presentation only when the same
-// seed regenerates identical answers, so baselines keep their puzzles.
+// Older banks are rewritten in the current version only when the same seed
+// regenerates identical answers, so baselines keep their puzzles.
 function upgradeBank(state, file) {
   const bank = readBank(state);
   if (bank.taskBankVersion >= TASK_BANK_VERSION) return;
@@ -40,7 +40,7 @@ function upgradeBank(state, file) {
   });
   if (!same)
     throw Error(
-      "This task bank predates the current format and cannot be upgraded. Run am-i-nerfed reset to generate a new bank; history is kept.",
+      "This task bank cannot be upgraded because the current version changed its puzzles. Run am-i-nerfed reset to generate a new bank; history is kept.",
     );
   writeJSON(file, next);
 }

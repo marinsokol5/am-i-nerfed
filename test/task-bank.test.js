@@ -219,3 +219,14 @@ test("every task presents a flat typed response shape that grades through nest",
     assert.doesNotMatch(task.prompt, /Am I nerfed|null|Reason yourself/, task.id);
   }
 });
+
+test("hard knowledge scenario B differs from scenario A in at least half its answers", () => {
+  for (let i = 0; i < 25; i++) {
+    const task = generateTaskBank(`synthetic-scenarios-${i}`).tasks.find(
+      (t) => t.id === "hard-3",
+    );
+    const { scenarioA: a, scenarioB: b } = task.answer.knowledge;
+    const keys = Object.keys(a);
+    assert.ok(2 * keys.filter((k) => a[k] !== b[k]).length >= keys.length, `seed ${i}`);
+  }
+});
