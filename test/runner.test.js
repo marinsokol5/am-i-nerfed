@@ -265,6 +265,7 @@ test("packaged runner and transport complete a real five-task lifecycle using a 
     const result = await runAssessment({
       agent: "codex",
       model: "fake-model",
+      effort: "medium",
       difficulty: "easy",
       seconds: 200,
     });
@@ -280,6 +281,7 @@ test("packaged runner and transport complete a real five-task lifecycle using a 
     const bare = await runAssessment({
       agent: "codex",
       model: "fake-model",
+      effort: "medium",
       difficulty: "easy",
       seconds: 200,
       systemPrompt: "none",

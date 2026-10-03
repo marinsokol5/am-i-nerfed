@@ -2,13 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomBytes, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { createInterface } from "node:readline/promises";
 import {
   withLock,
   stateRoot,
   privateDirectory,
   writeJSON,
-  readJSON,
   active,
 } from "./storage.js";
 import {
@@ -27,8 +25,8 @@ import { formatRun, formatQuestion, formatStart, formatAnswer } from "./output.j
 
 const help = `am-i-nerfed — private reasoning assessments
 
-  init [--agent codex|claude] [--model MODEL] [--effort LEVEL]
-  run [--agent codex|claude] [--model MODEL] [--effort LEVEL]
+  init
+  run --agent codex|claude --model MODEL --effort LEVEL
       [--difficulty easy|medium|hard] [--seconds N] [--no-system-prompt]
       [--verbose] [--json]
   start [--difficulty easy|medium|hard] [--seconds N]
@@ -168,10 +166,6 @@ async function input(opts) {
     throw Error("Invalid JSON; no answer was accepted");
   }
 }
-function readSettings(root) {
-  const p = path.join(root, "settings.json");
-  return fs.existsSync(p) ? readJSON(p) : {};
-}
 export async function main(args = process.argv.slice(2)) {
   const [command, ...rest] = args;
   if (!command || ["help", "--help", "-h"].includes(command)) {
@@ -229,47 +223,11 @@ export async function main(args = process.argv.slice(2)) {
     return;
   }
   if (command === "init" || command === "reset") {
-    const opts = options(
-      rest,
-      command === "init" ? settingFlags : [],
-      command === "reset" ? ["--yes"] : [],
-    );
+    const opts = options(rest, [], command === "reset" ? ["--yes"] : []);
     if (command === "reset" && !opts["--yes"])
       throw Error(
         "Reset creates a new bank and baseline; use reset --yes. Old history is preserved.",
       );
-    const chosen = settings(opts);
-    delete chosen.yes;
-    if (chosen.agent && !["codex", "claude"].includes(chosen.agent))
-      throw Error("Choose agent codex or claude");
-    if (command === "init" && process.stdin.isTTY && process.stdout.isTTY) {
-      const saved = withLock(readSettings);
-      Object.assign(chosen, { ...saved, ...chosen });
-      const terminal = createInterface({
-        input: process.stdin,
-        output: process.stderr,
-      });
-      try {
-        if (!chosen.agent)
-          chosen.agent = (
-            await terminal.question(
-              "Default agent (codex/claude, blank to configure later): ",
-            )
-          ).trim();
-        if (chosen.agent && !["codex", "claude"].includes(chosen.agent))
-          throw Error("Choose codex or claude");
-        if (chosen.agent && !chosen.model)
-          chosen.model = (
-            await terminal.question("Model ID to measure: ")
-          ).trim();
-        if (chosen.agent && !chosen.effort)
-          chosen.effort =
-            (await terminal.question("Reasoning effort [medium]: ")).trim() ||
-            "medium";
-      } finally {
-        terminal.close();
-      }
-    }
     const result = withLock((root) => {
       const pointer = path.join(root, "current.json");
       let state,
@@ -289,11 +247,6 @@ export async function main(args = process.argv.slice(2)) {
       }
       const bank = prepareBank(state);
       if (!existing) writeJSON(pointer, state.current);
-      if (Object.keys(chosen).length)
-        writeJSON(path.join(root, "settings.json"), {
-          ...readSettings(root),
-          ...chosen,
-        });
       return {
         initialized: true,
         existing,
@@ -303,7 +256,6 @@ export async function main(args = process.argv.slice(2)) {
         difficulties: ["easy", "medium", "hard"],
         defaultDifficulty: "medium",
         defaultSeconds: 120,
-        defaults: readSettings(root),
       };
     });
     print(result);
@@ -320,15 +272,12 @@ export async function main(args = process.argv.slice(2)) {
     delete opts["--verbose"];
     delete opts["--json"];
     delete opts["--no-system-prompt"];
-    const chosen = {
-      ...withLock(readSettings),
-      ...settings(opts),
-      verbose,
-      systemPrompt,
-    };
+    if (!opts["--agent"] || !opts["--model"] || !opts["--effort"])
+      throw Error("run requires --agent, --model and --effort");
+    const chosen = { ...settings(opts), verbose, systemPrompt };
     if (verbose)
       process.stderr.write(
-        `Running ${chosen.difficulty ?? "medium"} assessment through ${chosen.agent ?? "unconfigured client"}…\n`,
+        `Running ${chosen.difficulty ?? "medium"} assessment through ${chosen.agent}…\n`,
       );
     const result = await runAssessment(chosen);
     print(formatRun(result, { verbose }));

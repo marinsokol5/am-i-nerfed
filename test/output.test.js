@@ -163,7 +163,7 @@ process.stdin.on('end',()=>{
 `;
   fs.writeFileSync(path.join(f.bin, "claude"), fake, { mode: 0o700 });
   for (const flags of [[], ["--json"], ["--verbose"], ["--json", "--verbose"]]) {
-    const result = f.exec("run", "--agent", "claude", "--model", "fake-model", "--seconds", "60", ...flags);
+    const result = f.exec("run", "--agent", "claude", "--model", "fake-model", "--effort", "medium", "--seconds", "60", ...flags);
     assert.equal(result.status, 0, result.stderr);
     const run = JSON.parse(result.stdout);
     assert.equal(run.status, "finished");
@@ -180,4 +180,17 @@ process.stdin.on('end',()=>{
       assert.equal(result.stderr, "");
     }
   }
+});
+
+test("run requires --agent, --model and --effort; init saves no defaults", t => {
+  const f = fixture(t);
+  assert.equal("defaults" in f.initialized, false);
+  for (const missing of ["--agent", "--model", "--effort"]) {
+    const args = { "--agent": "claude", "--model": "fake-model", "--effort": "medium" };
+    delete args[missing];
+    const result = f.exec("run", ...Object.entries(args).flat());
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /run requires --agent, --model and --effort/);
+  }
+  assert.equal(f.exec("init", "--agent", "codex").status, 1);
 });

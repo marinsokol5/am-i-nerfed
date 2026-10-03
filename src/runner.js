@@ -418,12 +418,13 @@ export async function runAssessment(options) {
     throw Error(
       "The supervised runner currently requires macOS or Linux; the portable skill remains available",
     );
-  const { agent, model } = options,
-    effort = options.effort ?? "medium";
+  const { agent, model, effort } = options;
   if (!["codex", "claude"].includes(agent))
     throw Error("Choose --agent codex or --agent claude");
   if (typeof model !== "string" || !model || model.length > 200)
     throw Error("Supply --model explicitly");
+  if (typeof effort !== "string" || !effort)
+    throw Error("Supply --effort explicitly");
   if (
     ![
       "low",
