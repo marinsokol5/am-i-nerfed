@@ -19,6 +19,7 @@ import {
   assessmentAction,
   assessmentTimer,
   listHistory,
+  destroyHistory,
 } from "./assessment.js";
 import { runAssessment } from "./runner.js";
 import { installSkill } from "./install.js";
@@ -41,6 +42,7 @@ const help = `am-i-nerfed — private reasoning assessments
                [--agent NAME] [--invocation cli|skill|manual]
                [--difficulty LEVEL] [--seconds N] [--version VERSION]
                [--task-version N] [--baseline ID] [--status STATUS] [--json]
+  history destroy --yes
   reset --yes
   doctor [--init]
   skill install [--yes] [--agent NAME] [--global|--project] [--copy]
@@ -378,6 +380,15 @@ export async function main(args = process.argv.slice(2)) {
     const opts = options(rest, ["--run"]);
     if (!opts["--run"]) throw Error("Retain the --run ID returned by start");
     emit(assessmentTimer(active(stateRoot()), opts["--run"]));
+    return;
+  }
+  if (command === "history" && rest[0] === "destroy") {
+    const opts = options(rest.slice(1), [], ["--yes"]);
+    if (!opts["--yes"])
+      throw Error(
+        "history destroy permanently deletes every recorded run; use history destroy --yes. The task bank is kept.",
+      );
+    print(withLock(destroyHistory));
     return;
   }
   if (command === "history") {

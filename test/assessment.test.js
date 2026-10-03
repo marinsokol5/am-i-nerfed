@@ -17,6 +17,7 @@ import {
   assessmentPath,
   listHistory,
   annotateAssessment,
+  destroyHistory,
 } from "../src/assessment.js";
 const bank = generateTaskBank("synthetic-assessment");
 function fixture() {
@@ -361,6 +362,34 @@ test("starting a run upgrades an older bank only when its answers regenerate ide
     fs.writeFileSync(file, JSON.stringify(legacy));
     assert.throws(() => startAssessment(f.state, {}), /reset/);
     assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).taskBankVersion, 1);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test("history destroy deletes every run, keeps the bank, and requires --yes on the CLI", () => {
+  const f = fixture(),
+    bin = fileURLToPath(new URL("../bin/am-i-nerfed.js", import.meta.url));
+  const cli = (...args) =>
+    spawnSync(process.execPath, [bin, ...args], {
+      env: { ...process.env, AM_I_NERFED_HOME: f.root },
+      encoding: "utf8",
+    });
+  try {
+    startAssessment(f.state, {});
+    startAssessment(f.state, { difficulty: "easy" });
+    assert.equal(listHistory(f.root).runs.length, 2);
+    const refused = cli("history", "destroy");
+    assert.equal(refused.status, 1);
+    assert.match(refused.stderr, /--yes/);
+    assert.equal(listHistory(f.root).runs.length, 2);
+    const destroyed = cli("history", "destroy", "--yes");
+    assert.equal(destroyed.status, 0, destroyed.stderr);
+    assert.deepEqual(JSON.parse(destroyed.stdout), { deleted: 2 });
+    assert.equal(listHistory(f.root).runs.length, 0);
+    assert.ok(fs.existsSync(path.join(f.state.base, "task-bank.json")));
+    assert.equal(startAssessment(f.state, {}).tasks.length, 5);
+    assert.deepEqual(destroyHistory(path.join(f.root, "missing")), { deleted: 0 });
   } finally {
     f.cleanup();
   }

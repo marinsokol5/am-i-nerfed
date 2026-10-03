@@ -374,6 +374,25 @@ export function listHistory(root, filters = {}) {
   };
 }
 
+// Deletes every recorded run in every baseline. Banks, the current baseline
+// and settings stay, so new runs continue on the same tasks.
+export function destroyHistory(root) {
+  const directory = path.join(root, "baselines");
+  let deleted = 0;
+  if (!fs.existsSync(directory)) return { deleted };
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    if (!entry.isDirectory() || !/^[0-9a-f-]{36}$/.test(entry.name)) continue;
+    const dir = path.join(directory, entry.name, "assessments");
+    if (!fs.existsSync(dir)) continue;
+    for (const name of fs.readdirSync(dir))
+      if (/^[0-9a-f-]{36}\.json$/.test(name)) {
+        fs.unlinkSync(path.join(dir, name));
+        deleted++;
+      }
+  }
+  return { deleted };
+}
+
 const isObject = (value) =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 export function mergeDraft(previous, patch) {
