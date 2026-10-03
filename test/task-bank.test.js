@@ -72,10 +72,24 @@ test("hat answers are independently determined from the public transcript, inclu
     }
     assert.equal(possible.length, 1);
     const actual = possible[0];
+    // Only people who never name a color are asked, so no scored hat can
+    // be read off the transcript.
+    const asked = /never names a color: ([A-H](?:, [A-H])*)\./
+      .exec(prompt)[1]
+      .split(", ");
+    const neverNamed = [...new Set(said.map((m) => m[2]))].filter((who) =>
+      said.every((m) => m[2] !== who || m[3] === "unknown"),
+    );
+    const silent = vis
+      .map((_, i) => String.fromCharCode(65 + i))
+      .filter((who) => !said.some((m) => m[2] === who && m[3] !== "unknown"));
+    assert.ok(asked.length > 0);
+    assert.deepEqual(asked, silent);
+    assert.ok(neverNamed.every((who) => asked.includes(who)));
     assert.deepEqual(
       task.answer.knowledge.hats,
       Object.fromEntries(
-        actual.map((c, i) => [String.fromCharCode(65 + i), c]),
+        asked.map((who) => [who, actual[who.charCodeAt(0) - 65]]),
       ),
     );
     const alt = /same hats but order ([A-H](?:, [A-H])*) in each of (\d)/.exec(
@@ -93,6 +107,15 @@ test("hat answers are independently determined from the public transcript, inclu
       }
     assert.deepEqual(task.answer.knowledge.alternative, expected);
     assert.equal(actual.length, n);
+    // Copying each person's original reply in the same round predicts at
+    // most half of the alternative run.
+    const original = Object.fromEntries(
+      said.map(([, round, who, reply]) => [`round${round}_${who}`, reply]),
+    );
+    const copied = Object.entries(expected).filter(
+      ([name, reply]) => original[name] === reply,
+    ).length;
+    assert.ok(2 * copied <= Object.keys(expected).length);
   }
 });
 test("tracking keys match a forward replay of every observer subset", () => {

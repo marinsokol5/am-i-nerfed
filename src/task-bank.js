@@ -7,7 +7,8 @@ import { solveScores } from "./coordination.js";
 // Version 2 presents the same puzzles as version 1 with typed response shapes.
 // Version 3 regenerates hard knowledge scenario B when it repeats scenario A.
 // Version 4 randomizes knowledge protocol structure, not only bit labels.
-export const TASK_BANK_VERSION = 4;
+// Version 5 asks only hats nobody names and caps what copying predicts.
+export const TASK_BANK_VERSION = 5;
 export const LEVELS = ["easy", "medium", "hard"];
 export const hash = (value) =>
   createHash("sha256")
@@ -113,7 +114,7 @@ function hats(seed, level) {
   const colors = r
     .shuffle(["red", "blue", "white", "green"])
     .slice(0, counts.length);
-  for (let trial = 0; trial < 12000; trial++) {
+  for (let trial = 0; trial < 60000; trial++) {
     const visibility = base.map((i) =>
       r
         .shuffle(base.filter((j) => i !== j))
@@ -123,6 +124,13 @@ function hats(seed, level) {
     const actual = r.choose(worlds),
       first = hatRun(worlds, visibility, order, actual);
     if (first.remaining.length !== 1 || !first.replies.includes(-1)) continue;
+    // A named color is that person's hat, so only the hats of people who
+    // never name a color are asked; at least one must exist.
+    const named = new Set(
+      first.replies.flatMap((a, i) => (a === -1 ? [] : [order[i]])),
+    );
+    const hidden = base.filter((i) => !named.has(i));
+    if (!hidden.length) continue;
     const alt = level === 2 ? r.shuffle(base) : [...base].reverse();
     if (alt.every((v, i) => v === base[i])) continue;
     const second = hatRun(
@@ -147,10 +155,16 @@ function hats(seed, level) {
         .some((a, i) => a !== -1 && first.replies[i] === -1)
     )
       continue;
+    // Copying each person's reply from the same original round must not
+    // predict most of the alternative run.
+    const copied = second.replies.filter(
+      (a, i) => a === first.replies[Math.floor(i / n) * n + alt[i % n]],
+    ).length;
+    if (2 * copied > second.replies.length) continue;
     const color = (a) => (a === -1 ? "unknown" : colors[a]);
     const answer = {
       knowledge: {
-        hats: Object.fromEntries(actual.map((a, i) => [names[i], color(a)])),
+        hats: Object.fromEntries(hidden.map((i) => [names[i], color(actual[i])])),
         alternative: Object.fromEntries(
           second.replies.map((a, i) => [
             `round${Math.floor(i / n) + 1}_${names[alt[i % n]]}`,
@@ -159,7 +173,7 @@ function hats(seed, level) {
         ),
       },
     };
-    const prompt = `${n} people (${base.map((i) => names[i]).join(", ")}) wear exactly ${counts.map((v, i) => `${v} ${colors[i]}`).join(", ")} hats. Nobody sees their own hat.\nVisibility:\n${visibility.map((v, i) => `${names[i]} sees ${v.map((j) => names[j]).join(", ")}.`).join("\n")}\nEveryone knows the counts, visibility, protocol, and everyone's perfect reasoning, commonly. On each turn a person MUST name their own color if certain from their view and every preceding public reply; otherwise they say unknown. There are no other signals. They speak in order ${base.map((i) => names[i]).join(", ")} for ${rounds} round(s), retaining all previous replies.\nObserved transcript:\n${first.replies.map((a, i) => `Round ${Math.floor(i / n) + 1}, ${names[order[i]]}: ${color(a)}`).join("\n")}\nFind all hats. Then restart from scratch with the same hats but order ${alt.map((i) => names[i]).join(", ")} in each of ${rounds} round(s), commonly known from the beginning; nobody has heard the original transcript. Predict every reply in that alternative run.`;
+    const prompt = `${n} people (${base.map((i) => names[i]).join(", ")}) wear exactly ${counts.map((v, i) => `${v} ${colors[i]}`).join(", ")} hats. Nobody sees their own hat.\nVisibility:\n${visibility.map((v, i) => `${names[i]} sees ${v.map((j) => names[j]).join(", ")}.`).join("\n")}\nEveryone knows the counts, visibility, protocol, and everyone's perfect reasoning, commonly. On each turn a person MUST name their own color if certain from their view and every preceding public reply; otherwise they say unknown. There are no other signals. They speak in order ${base.map((i) => names[i]).join(", ")} for ${rounds} round(s), retaining all previous replies.\nObserved transcript:\n${first.replies.map((a, i) => `Round ${Math.floor(i / n) + 1}, ${names[order[i]]}: ${color(a)}`).join("\n")}\nFind the hats of everyone who never names a color: ${hidden.map((i) => names[i]).join(", ")}. Then restart from scratch with the same hats but order ${alt.map((i) => names[i]).join(", ")} in each of ${rounds} round(s), commonly known from the beginning; nobody has heard the original transcript. Predict every reply in that alternative run.`;
     return {
       prompt,
       answer,
