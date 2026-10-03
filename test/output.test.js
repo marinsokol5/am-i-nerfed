@@ -28,33 +28,43 @@ function fixture(t) {
   return { root, home, bin, exec, json, initialized, recordPath };
 }
 
-test("status is compact by default, and submitted distinguishes no answer from a null submission", t => {
+test("start, answer and status are compact by default; verbose restores metadata", t => {
   const f = fixture(t), start = f.json("start", "--seconds", "500");
-  assert.equal(typeof start.taskBankHash, "string");
-  assert.equal("bankHash" in start, false);
-  assert.equal(start.tasks[0].submitted, false);
-  assert.equal("saved" in start.tasks[0], false);
+  assert.deepEqual(Object.keys(start), ["runId", "difficulty", "clock", "tasks"]);
+  assert.deepEqual(Object.keys(start.clock), clockKeys);
+  assert.ok(start.tasks.length === 5 && start.tasks.every(id => typeof id === "string"));
+  const startVerbose = f.json("start", "--seconds", "500", "--verbose");
+  assert.equal(typeof startVerbose.taskBankHash, "string");
+  assert.equal(startVerbose.tasks[0].submitted, false);
   const active = f.json("status", "--run", start.runId);
   assert.deepEqual(Object.keys(active), compactKeys);
   assert.deepEqual(Object.keys(active.clock), clockKeys);
-  assert.deepEqual(active.tasks[0], { id: start.tasks[0].id, submitted: false, filledFields: 0 });
-  f.json("answer", "--run", start.runId, "--task", start.tasks[0].id, "--json", "null");
+  assert.deepEqual(active.tasks[0], { id: start.tasks[0], submitted: false, filledFields: 0 });
+  const answered = f.json("answer", "--run", start.runId, "--task", start.tasks[0], "--json", "null");
+  assert.deepEqual(Object.keys(answered), ["accepted", "taskId", "remainingSeconds"]);
+  assert.equal(answered.accepted, true);
+  const answerVerbose = f.json("answer", "--run", start.runId, "--task", start.tasks[0], "--json", "null", "--verbose");
+  assert.equal(typeof answerVerbose.taskBankHash, "string");
   const submitted = f.json("status", "--run", start.runId);
-  assert.deepEqual(submitted.tasks[0], { id: start.tasks[0].id, submitted: true, filledFields: 0 });
+  assert.deepEqual(submitted.tasks[0], { id: start.tasks[0], submitted: true, filledFields: 0 });
   const verbose = f.json("status", "--run", start.runId, "--verbose");
-  assert.equal(verbose.taskBankHash, start.taskBankHash);
-  assert.equal(verbose.baselineId, start.baselineId);
-  assert.equal(verbose.clock.startedAt, start.clock.startedAt);
-  assert.equal(verbose.tasks[0].family, start.tasks[0].family);
-  assert.equal(verbose.tasks[0].promptHash, start.tasks[0].promptHash);
+  assert.equal(verbose.baselineId, f.initialized.baselineId);
+  assert.equal(typeof verbose.clock.startedAt, "string");
+  assert.equal(typeof verbose.tasks[0].family, "string");
+  assert.equal(typeof verbose.tasks[0].promptHash, "string");
   assert.equal(verbose.tasks[0].submitted, true);
   assert.equal("result" in active, false);
   assert.equal("result" in verbose, false);
+  const finished = f.json("finish", "--run", start.runId);
+  assert.deepEqual(Object.keys(finished), [...compactKeys, "result"]);
+  const late = f.exec("answer", "--run", start.runId, "--task", start.tasks[0], "--json", "null");
+  assert.equal(late.status, 1);
+  assert.deepEqual(Object.keys(JSON.parse(late.stdout)), ["accepted", "reason", ...compactKeys, "result"]);
 });
 
 test("completed status keeps scores compact and normalizes legacy receipts without rewriting them", t => {
   const f = fixture(t), start = f.json("start");
-  f.json("answer", "--run", start.runId, "--task", start.tasks[0].id, "--json", "null");
+  f.json("answer", "--run", start.runId, "--task", start.tasks[0], "--json", "null");
   f.json("finish", "--run", start.runId);
   const file = f.recordPath(start.runId), record = JSON.parse(fs.readFileSync(file));
   record.receipt.bankHash = record.receipt.taskBankHash;
@@ -82,7 +92,7 @@ test("completed status keeps scores compact and normalizes legacy receipts witho
 
 test("question returns task text, response shape, submitted answers and remaining seconds only", t => {
   const f = fixture(t), start = f.json("start", "--seconds", "500", "--difficulty", "easy");
-  const taskId = start.tasks[0].id;
+  const taskId = start.tasks[0];
   const question = f.json("question", "--run", start.runId, "--task", taskId);
   assert.deepEqual(Object.keys(question), ["taskId", "remainingSeconds", "task", "types", "response", "submitted"]);
   assert.equal(question.taskId, taskId);
@@ -94,7 +104,7 @@ test("question returns task text, response shape, submitted answers and remainin
   assert.ok(Object.values(question.response.alternative).every(type => type === "Reply"));
   assert.deepEqual(question.submitted, {});
   assert.ok(question.remainingSeconds > 0 && question.remainingSeconds <= 500);
-  const bankFile = path.join(f.home, "baselines", start.baselineId, "task-bank.json");
+  const bankFile = path.join(f.home, "baselines", f.initialized.baselineId, "task-bank.json");
   const bankBefore = fs.readFileSync(bankFile, "utf8");
   assert.equal(question.task, JSON.parse(bankBefore).tasks.find(task => task.id === taskId).prompt);
   const draft = { hats: { A: question.types.Color[0] }, marin: 5 };
@@ -103,7 +113,7 @@ test("question returns task text, response shape, submitted answers and remainin
   assert.deepEqual(revised, { ...question, submitted: draft, remainingSeconds: revised.remainingSeconds });
   assert.ok(revised.remainingSeconds <= question.remainingSeconds);
   assert.equal(fs.readFileSync(bankFile, "utf8"), bankBefore);
-  const boolean = f.json("question", "--run", start.runId, "--task", start.tasks[2].id);
+  const boolean = f.json("question", "--run", start.runId, "--task", start.tasks[2]);
   assert.equal("types" in boolean, false);
   const unsupported = f.exec("question", "--run", start.runId, "--task", taskId, "--verbose");
   assert.equal(unsupported.status, 1);
@@ -142,7 +152,7 @@ process.stdin.resume();
 process.stdin.on('end',()=>{
   const call=(args)=>{const r=cp.spawnSync('./assessment',args,{encoding:'utf8'});if(r.status)throw Error(r.stderr);return JSON.parse(r.stdout);};
   const started=call(['start']);
-  const question=call(['question','--task',started.tasks[0].id]);
+  const question=call(['question','--task',started.tasks[0]]);
   if(!['taskId','remainingSeconds','task','response','submitted'].every(k=>k in question) || 'runId' in question || question.task.includes('Reason yourself without code'))throw Error('Question leaked wrapper text or run metadata');
   const compact=call(['status']);
   const verbose=call(['status','--verbose']);

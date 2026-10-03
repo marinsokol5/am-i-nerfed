@@ -22,7 +22,7 @@ import {
 } from "./assessment.js";
 import { runAssessment } from "./runner.js";
 import { installSkill } from "./install.js";
-import { formatRun, formatQuestion } from "./output.js";
+import { formatRun, formatQuestion, formatStart, formatAnswer } from "./output.js";
 
 const help = `am-i-nerfed — private reasoning assessments
 
@@ -31,12 +31,12 @@ const help = `am-i-nerfed — private reasoning assessments
       [--difficulty easy|medium|hard] [--seconds N] [--verbose] [--json]
   start [--difficulty easy|medium|hard] [--seconds N]
         [--invocation skill|manual] [--agent NAME] [--provider NAME]
-        [--model MODEL] [--effort LEVEL]
+        [--model MODEL] [--effort LEVEL] [--verbose]
   question --run ID --task ID
-  answer --run ID --task ID [--json JSON | --file PATH | stdin]
+  answer --run ID --task ID [--json JSON | --file PATH | stdin] [--verbose]
   status --run ID [--verbose]
   timer --run ID
-  finish --run ID
+  finish --run ID [--verbose]
   history list [--model MODEL] [--effort LEVEL] [--provider NAME]
                [--agent NAME] [--invocation cli|skill|manual]
                [--difficulty LEVEL] [--seconds N] [--version VERSION]
@@ -51,7 +51,7 @@ run launches a fresh native CLI session with a process watchdog.
 start/question/answer/status/finish compose an in-context assessment. They
 enforce the answer deadline but cannot stop an independently hosted agent.
 Difficulty and reasoning effort are different settings. Unknown metadata
-should be omitted. run/status return compact JSON; --verbose includes metadata.
+should be omitted. Commands return compact JSON; --verbose adds run metadata.
 Transport commands return JSON. history has --json for scripts.
 `;
 function options(args, values = [], booleans = []) {
@@ -326,7 +326,9 @@ export async function main(args = process.argv.slice(2)) {
       ...assessmentFlags,
       "--invocation",
       "--provider",
-    ]);
+    ], ["--verbose"]);
+    const verbose = Boolean(opts["--verbose"]);
+    delete opts["--verbose"];
     if (
       opts["--invocation"] &&
       !["skill", "manual"].includes(opts["--invocation"])
@@ -334,7 +336,12 @@ export async function main(args = process.argv.slice(2)) {
       throw Error(
         "Direct start uses skill or manual; use run for a supervised CLI assessment",
       );
-    print(withLock((root) => startAssessment(active(root), settings(opts))));
+    print(
+      formatStart(
+        withLock((root) => startAssessment(active(root), settings(opts))),
+        { verbose },
+      ),
+    );
     return;
   }
   if (["question", "answer", "status", "finish"].includes(command)) {
@@ -342,7 +349,7 @@ export async function main(args = process.argv.slice(2)) {
       "--run",
       ...(["question", "answer"].includes(command) ? ["--task"] : []),
       ...(command === "answer" ? ["--json", "--file"] : []),
-    ], command === "status" ? ["--verbose"] : []);
+    ], command === "question" ? [] : ["--verbose"]);
     if (!opts["--run"]) throw Error("Retain the --run ID returned by start");
     if (["question", "answer"].includes(command) && !opts["--task"])
       throw Error("A --task ID is required");
@@ -354,9 +361,14 @@ export async function main(args = process.argv.slice(2)) {
         patch,
       }),
     );
-    print(command === "status"
-      ? formatRun(result, { verbose: opts["--verbose"] })
-      : command === "question" ? formatQuestion(result, opts["--task"]) : result);
+    const verbose = Boolean(opts["--verbose"]);
+    print(
+      command === "question"
+        ? formatQuestion(result, opts["--task"])
+        : command === "answer"
+          ? formatAnswer(result, { verbose })
+          : formatRun(result, { verbose }),
+    );
     if (result.accepted === false) process.exitCode = 1;
     return;
   }

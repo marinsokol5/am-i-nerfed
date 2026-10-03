@@ -255,7 +255,7 @@ test("public CLI supports stdin answers and filterable history without installin
     ]);
     assert.equal(started.status, 0, started.stderr);
     const start = JSON.parse(started.stdout);
-    const args = ["answer", "--run", start.runId, "--task", start.tasks[0].id];
+    const args = ["answer", "--run", start.runId, "--task", start.tasks[0]];
     const invalid = run([...args, "--json", "{"]);
     assert.equal(invalid.status, 1);
     assert.equal(invalid.stdout, "");

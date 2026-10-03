@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { withLock, active, stateRoot, writeJSON, readJSON } from "./storage.js";
 import { startAssessment, assessmentAction, assessmentTimer } from "./assessment.js";
-import { formatRun, formatQuestion } from "./output.js";
+import { formatRun, formatQuestion, formatStart, formatAnswer } from "./output.js";
 
 export function transport(configPath, args = process.argv.slice(2)) {
   const config = readJSON(configPath),
@@ -75,9 +75,14 @@ export function transport(configPath, args = process.argv.slice(2)) {
     }) + "\n",
     { mode: 0o600 },
   );
-  const output = action === "status"
-    ? formatRun(result, { verbose: opts.verbose })
-    : action === "question" ? formatQuestion(result, opts["--task"]) : result;
+  const output =
+    action === "start"
+      ? formatStart(result)
+      : action === "question"
+        ? formatQuestion(result, opts["--task"])
+        : action === "answer"
+          ? formatAnswer(result)
+          : formatRun(result, { verbose: opts.verbose });
   process.stdout.write(JSON.stringify(output) + "\n");
   if (result.accepted === false) process.exitCode = 1;
 }

@@ -13,15 +13,18 @@ export function renameRunFields(run) {
   return rest;
 }
 
+const compactClock = ({ durationSeconds, elapsedSeconds, remainingSeconds }) => ({
+  durationSeconds, elapsedSeconds, remainingSeconds,
+});
+
 export function formatRun(run, { verbose = false } = {}) {
   const full = renameRunFields(run);
   if (verbose) return full;
-  const { durationSeconds, elapsedSeconds, remainingSeconds } = full.clock;
   const compact = {
     runId: full.runId,
     status: full.status,
     difficulty: full.difficulty,
-    clock: { durationSeconds, elapsedSeconds, remainingSeconds },
+    clock: compactClock(full.clock),
     tasks: full.tasks.map(({ id, submitted, filledFields }) => ({
       id, submitted, filledFields,
     })),
@@ -33,6 +36,29 @@ export function formatRun(run, { verbose = false } = {}) {
     };
   if (full.failure !== undefined) compact.failure = full.failure;
   return compact;
+}
+
+// Agents only need the run ID, the clock and the task IDs to begin.
+export function formatStart(run, { verbose = false } = {}) {
+  const full = renameRunFields(run);
+  if (verbose) return full;
+  return {
+    runId: full.runId,
+    difficulty: full.difficulty,
+    clock: compactClock(full.clock),
+    tasks: full.tasks.map(({ id }) => id),
+  };
+}
+
+export function formatAnswer(result, { verbose = false } = {}) {
+  if (verbose) return renameRunFields(result);
+  if (result.accepted)
+    return {
+      accepted: true,
+      taskId: result.taskId,
+      remainingSeconds: result.clock.remainingSeconds,
+    };
+  return { accepted: false, reason: result.reason, ...formatRun(result) };
 }
 
 export function formatQuestion(response, taskId) {
