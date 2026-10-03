@@ -1,0 +1,168 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { formatRun, renameRunFields } from "../src/output.js";
+
+const cli = fileURLToPath(new URL("../bin/am-i-nerfed.js", import.meta.url));
+const compactKeys = ["runId", "status", "difficulty", "clock", "tasks"];
+const clockKeys = ["durationSeconds", "elapsedSeconds", "remainingSeconds"];
+
+function fixture(t) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nerfed-output-test-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const home = path.join(root, "state"), cwd = path.join(root, "project"), bin = path.join(root, "bin");
+  fs.mkdirSync(cwd); fs.mkdirSync(bin);
+  const env = { ...process.env, AM_I_NERFED_HOME: home, PATH: bin + path.delimiter + process.env.PATH };
+  const exec = (...args) => spawnSync(process.execPath, [cli, ...args], { cwd, env, encoding: "utf8" });
+  const json = (...args) => {
+    const result = exec(...args);
+    assert.equal(result.status, 0, result.stderr);
+    return JSON.parse(result.stdout);
+  };
+  const initialized = json("init");
+  const recordPath = id => path.join(home, "baselines", initialized.baselineId, "assessments", id + ".json");
+  return { root, home, bin, exec, json, initialized, recordPath };
+}
+
+test("status is compact by default, and submitted distinguishes no answer from a null submission", t => {
+  const f = fixture(t), start = f.json("start", "--seconds", "500");
+  assert.equal(typeof start.taskBankHash, "string");
+  assert.equal("bankHash" in start, false);
+  assert.equal(start.tasks[0].submitted, false);
+  assert.equal("saved" in start.tasks[0], false);
+  const active = f.json("status", "--run", start.runId);
+  assert.deepEqual(Object.keys(active), compactKeys);
+  assert.deepEqual(Object.keys(active.clock), clockKeys);
+  assert.deepEqual(active.tasks[0], { id: start.tasks[0].id, submitted: false, filledFields: 0 });
+  f.json("answer", "--run", start.runId, "--task", start.tasks[0].id, "--json", "null");
+  const submitted = f.json("status", "--run", start.runId);
+  assert.deepEqual(submitted.tasks[0], { id: start.tasks[0].id, submitted: true, filledFields: 0 });
+  const verbose = f.json("status", "--run", start.runId, "--verbose");
+  assert.equal(verbose.taskBankHash, start.taskBankHash);
+  assert.equal(verbose.baselineId, start.baselineId);
+  assert.equal(verbose.clock.startedAt, start.clock.startedAt);
+  assert.equal(verbose.tasks[0].family, start.tasks[0].family);
+  assert.equal(verbose.tasks[0].promptHash, start.tasks[0].promptHash);
+  assert.equal(verbose.tasks[0].submitted, true);
+  assert.equal("result" in active, false);
+  assert.equal("result" in verbose, false);
+});
+
+test("completed status keeps scores compact and normalizes legacy receipts without rewriting them", t => {
+  const f = fixture(t), start = f.json("start");
+  f.json("answer", "--run", start.runId, "--task", start.tasks[0].id, "--json", "null");
+  f.json("finish", "--run", start.runId);
+  const file = f.recordPath(start.runId), record = JSON.parse(fs.readFileSync(file));
+  record.receipt.bankHash = record.receipt.taskBankHash;
+  delete record.receipt.taskBankHash;
+  record.receipt.tasks = record.receipt.tasks.map(({ submitted, ...task }) => ({ ...task, saved: submitted }));
+  fs.writeFileSync(file, JSON.stringify(record));
+  const before = fs.readFileSync(file, "utf8");
+  const compact = f.json("status", "--run", start.runId);
+  const verbose = f.json("status", "--run", start.runId, "--verbose");
+  assert.deepEqual(Object.keys(compact), [...compactKeys, "result"]);
+  assert.deepEqual(Object.keys(compact.result), ["percent", "tasks"]);
+  assert.deepEqual(Object.keys(compact.result.tasks[0]), ["id", "percent"]);
+  assert.equal(compact.result.percent, verbose.result.percent);
+  assert.equal(verbose.result.taskWeightPercent, 20);
+  assert.equal(typeof verbose.result.tasks[0].stages, "object");
+  assert.equal(verbose.taskBankHash, record.receipt.bankHash);
+  assert.equal("bankHash" in verbose, false);
+  assert.equal(verbose.tasks[0].submitted, true);
+  assert.equal("saved" in verbose.tasks[0], false);
+  assert.equal(fs.readFileSync(file, "utf8"), before);
+  const history = f.json("history", "list", "--json").runs[0];
+  assert.equal(history.taskBankHash, verbose.taskBankHash);
+  assert.equal("bankHash" in history, false);
+});
+
+test("question returns only Task, draft, task ID and remaining seconds, without the branded heading", t => {
+  const f = fixture(t), start = f.json("start", "--seconds", "500");
+  const taskId = start.tasks[0].id;
+  const question = f.json("question", "--run", start.runId, "--task", taskId);
+  assert.deepEqual(Object.keys(question), ["taskId", "Task", "draft", "remainingSeconds"]);
+  assert.equal(question.taskId, taskId);
+  assert.equal(typeof question.Task, "string");
+  assert.doesNotMatch(question.Task, /^Am I nerfed:/);
+  const bankFile = path.join(f.home, "baselines", start.baselineId, "task-bank.json");
+  const bankBefore = fs.readFileSync(bankFile, "utf8");
+  const storedPrompt = JSON.parse(bankBefore).tasks.find(task => task.id === taskId).prompt;
+  assert.equal(question.Task, storedPrompt.slice(storedPrompt.indexOf("\n\n") + 2));
+  assert.ok(question.remainingSeconds > 0 && question.remainingSeconds <= 500);
+  assert.equal(question.draft, null);
+  const draft = { saved: "answer data", bankHash: "answer data" };
+  f.json("answer", "--run", start.runId, "--task", taskId, "--json", JSON.stringify(draft));
+  const revised = f.json("question", "--run", start.runId, "--task", taskId);
+  assert.deepEqual(revised, { ...question, draft, remainingSeconds: revised.remainingSeconds });
+  assert.ok(revised.remainingSeconds <= question.remainingSeconds);
+  assert.equal(fs.readFileSync(bankFile, "utf8"), bankBefore);
+  const unsupported = f.exec("question", "--run", start.runId, "--task", taskId, "--verbose");
+  assert.equal(unsupported.status, 1);
+  assert.equal(unsupported.stdout, "");
+  f.json("finish", "--run", start.runId);
+  assert.deepEqual(f.json("question", "--run", start.runId, "--task", taskId), {
+    taskId, status: "finished", remainingSeconds: 0,
+  });
+});
+
+test("field normalization leaves answer contents and original objects untouched, and failures stay visible", () => {
+  const legacy = {
+    runId: "test", status: "failed", difficulty: "easy", bankHash: "bank",
+    clock: { durationSeconds: 120, elapsedSeconds: 1, remainingSeconds: 0 },
+    tasks: [{ id: "easy-1", saved: false, filledFields: 0, family: "hats" }],
+    draft: { saved: "answer-field", bankHash: "another-answer-field" },
+    failure: "Synthetic client failure", execution: { failure: "Synthetic client failure" },
+  };
+  const before = structuredClone(legacy), normalized = renameRunFields(legacy);
+  assert.deepEqual(legacy, before);
+  assert.deepEqual(normalized.draft, before.draft);
+  assert.equal(normalized.taskBankHash, "bank");
+  const compact = formatRun(legacy);
+  assert.equal(compact.failure, legacy.failure);
+  assert.equal("result" in compact, false);
+  assert.equal("execution" in compact, false);
+  assert.deepEqual(formatRun(legacy, { verbose: true }).execution, legacy.execution);
+});
+
+test("run and native status use compact JSON by default; verbose restores metadata and diagnostics", t => {
+  const f = fixture(t);
+  const fake = `#!${process.execPath}
+const cp = require('node:child_process');
+if(process.argv.includes('--version')){console.log('fake-cli');process.exit(0);}
+process.stdin.resume();
+process.stdin.on('end',()=>{
+  const call=(args)=>{const r=cp.spawnSync('./assessment',args,{encoding:'utf8'});if(r.status)throw Error(r.stderr);return JSON.parse(r.stdout);};
+  const started=call(['start']);
+  const question=call(['question','--task',started.tasks[0].id]);
+  if(JSON.stringify(Object.keys(question))!==JSON.stringify(['taskId','Task','draft','remainingSeconds']) || question.Task.startsWith('Am I nerfed:'))throw Error('Question leaked run metadata');
+  const compact=call(['status']);
+  const verbose=call(['status','--verbose']);
+  if('taskBankHash' in compact || 'family' in compact.tasks[0] || !verbose.taskBankHash || !verbose.tasks[0].family)throw Error('Wrong native status projection');
+  call(['finish']);
+  console.log(JSON.stringify({type:'result',is_error:false}));
+});
+`;
+  fs.writeFileSync(path.join(f.bin, "claude"), fake, { mode: 0o700 });
+  for (const flags of [[], ["--json"], ["--verbose"], ["--json", "--verbose"]]) {
+    const result = f.exec("run", "--agent", "claude", "--model", "fake-model", "--seconds", "60", ...flags);
+    assert.equal(result.status, 0, result.stderr);
+    const run = JSON.parse(result.stdout);
+    assert.equal(run.status, "finished");
+    assert.equal(run.result.percent, 0);
+    if (flags.includes("--verbose")) {
+      assert.equal(run.agent, "claude");
+      assert.equal(typeof run.taskBankHash, "string");
+      assert.equal(run.execution.failure, null);
+      assert.ok(run.clock.startedAt);
+      assert.match(result.stderr, /Running/);
+    } else {
+      assert.deepEqual(Object.keys(run), [...compactKeys, "result"]);
+      assert.deepEqual(Object.keys(run.clock), clockKeys);
+      assert.equal(result.stderr, "");
+    }
+  }
+});

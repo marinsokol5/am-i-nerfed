@@ -19,7 +19,7 @@ import {
   annotateAssessment,
 } from "./assessment.js";
 
-export const EXAM_INSTRUCTIONS = `Take this private reasoning assessment yourself. Only the supplied assessment commands may be used. Do not calculate with code, browse, read files, inspect the transport, consult prior answers or delegate. Retrieve each task individually. Save partial answers as soon as useful, then continue or revise; omitted fields preserve earlier work and null clears a field. All five tasks count equally. Clock feedback arrives with every command. If you have answers for all five tasks with time remaining, feel free to challenge your assumptions or double-check your answers. You do not need to stop before time runs out. You may finish early when satisfied; ending your turn also ends the assessment. There are no reminders or second chances. Only saved answers count; no correctness feedback is available before closing the run.`;
+export const EXAM_INSTRUCTIONS = `Take this private reasoning assessment yourself. Only the supplied assessment commands may be used. Do not calculate with code, browse, read files, inspect the transport, consult prior answers or delegate. Retrieve each task individually. Save partial answers as soon as useful, then continue or revise; omitted fields preserve earlier work and null clears a field. All five tasks count equally. Use the timer command to check remaining time. If you have answers for all five tasks with time remaining, feel free to challenge your assumptions or double-check your answers. You do not need to stop before time runs out. You may finish early when satisfied; ending your turn also ends the assessment. There are no reminders or second chances. Only saved answers count; no correctness feedback is available before closing the run.`;
 
 export function nativeCommand(agent, opts) {
   if (agent === "claude")
@@ -198,7 +198,9 @@ export function permittedCommand(command) {
     return permittedCommand(tokens[2]);
   if (tokens.shift() !== "./assessment") return false;
   const action = tokens.shift();
-  if (["start", "status", "timer", "finish"].includes(action))
+  if (action === "status")
+    return tokens.length === 0 || (tokens.length === 1 && tokens[0] === "--verbose");
+  if (["start", "timer", "finish"].includes(action))
     return tokens.length === 0;
   if (!["question", "answer"].includes(action)) return false;
   if (
@@ -467,9 +469,10 @@ export async function runAssessment(options) {
         const lines = fs.readFileSync(events, "utf8").trim().split("\n");
         if (lines.length > seenEvents) {
           const last = JSON.parse(lines.at(-1));
-          process.stderr.write(
-            `${last.action}: ${last.clock.remainingSeconds}s remaining\n`,
-          );
+          if (options.verbose)
+            process.stderr.write(
+              `${last.action}: ${last.clock.remainingSeconds}s remaining\n`,
+            );
           seenEvents = lines.length;
         }
         const last = lines.at(-1);

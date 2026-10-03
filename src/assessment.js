@@ -5,6 +5,7 @@ import { generateTaskBank, hash, LEVELS } from "./task-bank.js";
 import { active, privateDirectory, readJSON, writeJSON } from "./storage.js";
 import { grade } from "./grading.js";
 import { durationSeconds as validateDuration } from "./duration.js";
+import { renameRunFields } from "./output.js";
 
 export const PROTOCOL_VERSION = 1;
 export const appVersion = () =>
@@ -103,7 +104,7 @@ function view(record, now) {
     appVersion: record.appVersion,
     taskBankVersion: record.taskBankVersion,
     protocolVersion: record.protocolVersion,
-    bankHash: record.publicBankHash,
+    taskBankHash: record.publicBankHash,
     difficulty: record.difficulty,
     invocation: record.invocation,
     agent: record.agent,
@@ -116,7 +117,7 @@ function view(record, now) {
     clock: clock(record, now),
     tasks: record.tasks.map((t) => ({
       ...t,
-      saved: Object.hasOwn(record.drafts, t.id),
+      submitted: Object.hasOwn(record.drafts, t.id),
       filledFields: filled(record.drafts[t.id]),
     })),
   };
@@ -175,7 +176,7 @@ export function assessmentAction(state, action, opts, time = Date.now) {
           reason: "Run is closed; answer unchanged.",
         }
       : receipt;
-  if (record.receipt) return closed(record.receipt);
+  if (record.receipt) return closed(renameRunFields(record.receipt));
   const bank = readBank(state);
   if (hash(bank) !== record.privateBankHash)
     throw Error("Frozen task bank changed; this run cannot be scored");
@@ -276,7 +277,7 @@ export function annotateAssessment(state, id, metadata) {
     record.receipt = { ...view(record, Date.now()), failure: metadata.failure };
   }
   writeJSON(file, record);
-  return { ...record.receipt, execution: metadata };
+  return { ...renameRunFields(record.receipt), execution: metadata };
 }
 export function listHistory(root, filters = {}) {
   const directory = path.join(root, "baselines"),
@@ -310,7 +311,7 @@ export function listHistory(root, filters = {}) {
         appVersion: record.appVersion,
         taskBankVersion: record.taskBankVersion,
         protocolVersion: record.protocolVersion,
-        bankHash: record.publicBankHash,
+        taskBankHash: record.publicBankHash,
         invocation: record.invocation,
         agent: record.agent,
         provider: record.provider,

@@ -22,18 +22,19 @@ import {
 } from "./assessment.js";
 import { runAssessment } from "./runner.js";
 import { installSkill } from "./install.js";
+import { formatRun, formatQuestion } from "./output.js";
 
 const help = `am-i-nerfed — private reasoning assessments
 
   init [--agent codex|claude] [--model MODEL] [--effort LEVEL]
   run [--agent codex|claude] [--model MODEL] [--effort LEVEL]
-      [--difficulty easy|medium|hard] [--seconds N] [--json]
+      [--difficulty easy|medium|hard] [--seconds N] [--verbose] [--json]
   start [--difficulty easy|medium|hard] [--seconds N]
         [--invocation skill|manual] [--agent NAME] [--provider NAME]
         [--model MODEL] [--effort LEVEL]
   question --run ID --task ID
   answer --run ID --task ID [--json JSON | --file PATH | stdin]
-  status --run ID
+  status --run ID [--verbose]
   timer --run ID
   finish --run ID
   history list [--model MODEL] [--effort LEVEL] [--provider NAME]
@@ -50,8 +51,8 @@ run launches a fresh native CLI session with a process watchdog.
 start/question/answer/status/finish compose an in-context assessment. They
 enforce the answer deadline but cannot stop an independently hosted agent.
 Difficulty and reasoning effort are different settings. Unknown metadata
-should be omitted. Transport commands return JSON. run/history have --json
-for scripts; progress goes to stderr.
+should be omitted. run/status return compact JSON; --verbose includes metadata.
+Transport commands return JSON. history has --json for scripts.
 `;
 function options(args, values = [], booleans = []) {
   const out = {};
@@ -76,21 +77,6 @@ const print = (value) =>
   process.stdout.write(JSON.stringify(value, null, 2) + "\n");
 const text = (value) =>
   String(value ?? "unknown").replace(/[\u0000-\u001f\u007f]/g, " ");
-function printRun(run) {
-  if (run.failure) {
-    process.stdout.write(`Measurement failed: ${text(run.failure)}\n`);
-    return;
-  }
-  process.stdout.write(
-    `${run.result.percent.toFixed(1)}% correct\n` +
-      `${text(run.agent)} · ${text(run.model)} · effort ${text(run.effort)} · ${run.difficulty} tasks · ${run.clock.elapsedSeconds}/${run.clock.durationSeconds}s\n` +
-      run.result.tasks
-        .map((t) => `${t.family}: ${t.percent.toFixed(1)}%`)
-        .join(" · ") +
-      "\n" +
-      `Am I nerfed ${run.appVersion} · task bank v${run.taskBankVersion} · ${run.invocation}\n`,
-  );
-}
 function printHistory(history) {
   if (!history.runs.length) {
     process.stdout.write("No matching assessments.\n");
@@ -319,15 +305,18 @@ export async function main(args = process.argv.slice(2)) {
     const opts = options(
       rest,
       [...settingFlags, ...assessmentFlags],
-      ["--json"],
+      ["--json", "--verbose"],
     );
-    const chosen = { ...withLock(readSettings), ...settings(opts) };
-    process.stderr.write(
-      `Running ${chosen.difficulty ?? "medium"} assessment through ${chosen.agent ?? "unconfigured client"}…\n`,
-    );
+    const verbose = Boolean(opts["--verbose"]);
+    delete opts["--verbose"];
+    delete opts["--json"];
+    const chosen = { ...withLock(readSettings), ...settings(opts), verbose };
+    if (verbose)
+      process.stderr.write(
+        `Running ${chosen.difficulty ?? "medium"} assessment through ${chosen.agent ?? "unconfigured client"}…\n`,
+      );
     const result = await runAssessment(chosen);
-    if (opts["--json"]) print(result);
-    else printRun(result);
+    print(formatRun(result, { verbose }));
     if (result.failure) process.exitCode = 1;
     return;
   }
@@ -353,7 +342,7 @@ export async function main(args = process.argv.slice(2)) {
       "--run",
       ...(["question", "answer"].includes(command) ? ["--task"] : []),
       ...(command === "answer" ? ["--json", "--file"] : []),
-    ]);
+    ], command === "status" ? ["--verbose"] : []);
     if (!opts["--run"]) throw Error("Retain the --run ID returned by start");
     if (["question", "answer"].includes(command) && !opts["--task"])
       throw Error("A --task ID is required");
@@ -365,7 +354,9 @@ export async function main(args = process.argv.slice(2)) {
         patch,
       }),
     );
-    print(result);
+    print(command === "status"
+      ? formatRun(result, { verbose: opts["--verbose"] })
+      : command === "question" ? formatQuestion(result, opts["--task"]) : result);
     if (result.accepted === false) process.exitCode = 1;
     return;
   }
