@@ -11,9 +11,6 @@ metadata:
 - The question bank of `am-i-nerfed` has been created -> run `am-i-nerfed doctor --init` and check that it prints back `true`; otherwise ask user to run `am-i-nerfed init` themselves.
 - Skill arguments -> difficulty <DIFFICULTY>: `easy`, `medium`, or `hard` (default `medium`) and a total allowance in positive whole seconds <TIME> (default `120`); for example `/am-i-nerfed medium 120` (`/am-i-nerfed <DIFFICULTY> <TIME>`). These select the puzzle difficulty level and time budget, not your reasoning effort. Reject invalid arguments before starting.
 
-Note about execution environment:
-- An agent skill cannot interrupt its host model during reasoning. Briefly state that this is an in-context assessment with an enforced answer deadline, but no guaranteed computation cutoff. Do not promise a hard token budget or that your thinking process will be killed. If the user requires a hard computation cutoff, explain that they need to run the supervised CLI mode (`am-i-nerfed run`) themselves. 
-
 ## Rules
 
 - You have limited <TIME> to complete, as well as you can, 5 <DIFFICULTY> tasks; timer starts with `am-i-nerfed start` and is exposed to you at any moment through `am-i-nerfed timer --run <RUN-ID>`.
@@ -30,4 +27,4 @@ Note about execution environment:
 2. Retrieve individual task and see currently submitted answer -> `am-i-nerfed question --run <RUN-ID> --task <TASK-ID>`, or all five at once -> `am-i-nerfed questions --run <RUN-ID>`. Answer in the shape of `response`; each value is a JSON type (boolean, integer, string) or a name defined in `types`.
 3. Submit a new answer or revise existing -> `am-i-nerfed answer --run <RUN-ID> --task <TASK-ID> --json '<JSON>'`. Quoted stdin or `--file` is also accepted if needed for transport; do not use files to calculate answers. Partial JSON objects merge recursively, omitted fields preserve prior work.
 4. You can check timer at any moment through `am-i-nerfed timer --run <RUN-ID>`.
-5. Once the deadline has passed, stop reasoning and obtain the evaluation result through `am-i-nerfed status --run <RUN-ID>`. Late answers/revisions are rejected. Final score is at `result.percent`; communicate it back to the user.
+5. Once the deadline has passed, stop reasoning and obtain the evaluation result through `am-i-nerfed status --run <RUN-ID>`. Late answers/revisions are rejected. If you are 100% sure in each of your answers and see no use in thinking more about any one of them, you can call `am-i-nerfed finish --run <RUN-ID>` instead of waiting. Final score is at `result.percent`; communicate it back to the user.
