@@ -2,7 +2,7 @@
 name: am-i-nerfed
 description: Run a timed reasoning assessment on the current agent.
 metadata:
-  version: "0.9.1"
+  version: "0.10.0"
 ---
 
 ## Prerequisites
