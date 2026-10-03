@@ -34,9 +34,8 @@ export function grade(answer, submission) {
         actual !== null &&
         typeof actual === "object" &&
         Array.isArray(actual) === Array.isArray(expected);
+      // Extra keys are ignored: they cannot earn credit, so they are harmless.
       if (actual !== null && actual !== undefined && !valid) malformed = true;
-      if (valid && Object.keys(actual).some((k) => !Object.hasOwn(expected, k)))
-        malformed = true;
       for (const [k, v] of Object.entries(expected))
         visit(v, valid && Object.hasOwn(actual, k) ? actual[k] : undefined, [
           ...path,

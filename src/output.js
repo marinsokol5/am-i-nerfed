@@ -36,19 +36,17 @@ export function formatRun(run, { verbose = false } = {}) {
 }
 
 export function formatQuestion(response, taskId) {
-  if (typeof response.prompt === "string")
-    return {
+  if (typeof response.task === "string") {
+    const question = {
       taskId: response.taskId,
-      Task: response.prompt.replace(
-        /^Am I nerfed: (?:easy|medium|hard), (?:hats|cards|knowledge|tracking|coordination)\r?\n\r?\n/,
-        "",
-      ).replace(
-        /\r?\n\r?\nReason yourself without code, browsing, private-file inspection or other agents\. Question retrieval, partial answers and clock checks through the assessment CLI are permitted transport operations\.$/,
-        "",
-      ),
-      draft: response.draft,
       remainingSeconds: response.clock.remainingSeconds,
+      task: response.task,
     };
+    if (Object.keys(response.types ?? {}).length) question.types = response.types;
+    question.response = response.response;
+    question.submitted = response.submitted;
+    return question;
+  }
   const closed = { taskId, status: response.status, remainingSeconds: 0 };
   if (response.failure !== undefined) closed.failure = response.failure;
   return closed;

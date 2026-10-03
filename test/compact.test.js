@@ -204,7 +204,7 @@ for (const difficulty of ["easy", "normal"]) {
     );
   });
 
-  test(`${difficulty}: deterministic, compact, question-only JSON schema`, () => {
+  test(`${difficulty}: deterministic, compact, without an embedded answer schema`, () => {
     const first = generateCompact(
       `synthetic-contract-${difficulty}`,
       difficulty,
@@ -228,13 +228,9 @@ for (const difficulty of ["easy", "normal"]) {
         (difficulty === "easy" ? 500 : 1000),
     );
     assert.equal(first.prompt.includes("synthetic-contract"), false);
-    const output = JSON.parse(
-      first.prompt.slice(first.prompt.lastIndexOf("\n{\n")),
-    );
-    for (const [stage, fields] of Object.entries(first.answer)) {
-      assert.deepEqual(Object.keys(output[stage]), Object.keys(fields));
-      assert.ok(Object.values(output[stage]).every((value) => value === null));
-    }
+    // The response shape is presented separately from the task text.
+    assert.equal(first.prompt.includes("{"), false);
+    assert.equal(first.prompt.includes("null"), false);
     assert.deepEqual(
       Object.keys(first.answer),
       difficulty === "easy" ? ["knowledge"] : ["knowledge", "counterfactual"],

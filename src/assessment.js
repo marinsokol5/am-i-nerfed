@@ -1,7 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { generateTaskBank, hash, LEVELS } from "./task-bank.js";
+import {
+  answerLeaves,
+  generateTaskBank,
+  hash,
+  LEVELS,
+  nest,
+  TASK_BANK_VERSION,
+} from "./task-bank.js";
 import { active, privateDirectory, readJSON, writeJSON } from "./storage.js";
 import { grade } from "./grading.js";
 import { durationSeconds as validateDuration } from "./duration.js";
@@ -14,7 +21,28 @@ export function prepareBank(state) {
   const file = path.join(state.base, "task-bank.json");
   if (!fs.existsSync(file))
     writeJSON(file, generateTaskBank(state.dataset.seed), { exclusive: true });
+  else upgradeBank(state, file);
   return readBank(state);
+}
+// Older banks are rewritten in the current presentation only when the same
+// seed regenerates identical answers, so baselines keep their puzzles.
+function upgradeBank(state, file) {
+  const bank = readBank(state);
+  if (bank.taskBankVersion >= TASK_BANK_VERSION) return;
+  const next = generateTaskBank(state.dataset.seed);
+  const same = bank.tasks.every((task, i) => {
+    const t = next.tasks[i];
+    return (
+      t.id === task.id &&
+      JSON.stringify(answerLeaves(t.answer)) ===
+        JSON.stringify(answerLeaves(task.answer))
+    );
+  });
+  if (!same)
+    throw Error(
+      "This task bank predates the current format and cannot be upgraded. Run am-i-nerfed reset to generate a new bank; history is kept.",
+    );
+  writeJSON(file, next);
 }
 function readBank(state) {
   const bank = readJSON(path.join(state.base, "task-bank.json"));
@@ -192,14 +220,14 @@ export function assessmentAction(state, action, opts, time = Date.now) {
     record.finishedAt = expired
       ? record.deadlineAt
       : new Date(now).toISOString();
-    const tasks = record.tasks.map((t) => ({
-      id: t.id,
-      family: t.family,
-      ...grade(
-        bank.tasks.find((q) => q.id === t.id).answer,
-        record.drafts[t.id] ?? null,
-      ),
-    }));
+    const tasks = record.tasks.map((t) => {
+      const answer = bank.tasks.find((q) => q.id === t.id).answer;
+      return {
+        id: t.id,
+        family: t.family,
+        ...grade(answer, nest(answer, record.drafts[t.id] ?? null)),
+      };
+    });
     record.receipt = {
       ...view(record, now),
       finishedAt: record.finishedAt,
@@ -220,8 +248,10 @@ export function assessmentAction(state, action, opts, time = Date.now) {
     return {
       ...view(record, now),
       taskId: task.id,
-      prompt: task.prompt,
-      draft: record.drafts[task.id] ?? null,
+      task: task.prompt,
+      types: task.types,
+      response: task.response,
+      submitted: record.drafts[task.id] ?? {},
     };
   const drafts = {
     ...record.drafts,

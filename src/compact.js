@@ -15,19 +15,6 @@ import {
 const ZERO_CHECKS = { R0: 0, D5: 0, R14: 0, D7: 0 };
 const NOTATION = `K_X(P) means P is true in every world consistent with X's observations at that stage. W_X(P) means K_X(P) OR K_X(NOT P): X knows whether P, not necessarily that P is true. A false knowledge claim does not assert its negation is known. All agents reason perfectly, remember everything they observe, and commonly know this protocol. The actual world below is given to you only; it is not extra information for the agents.`;
 
-function schema(answer) {
-  return JSON.stringify(
-    Object.fromEntries(
-      Object.entries(answer).map(([stage, fields]) => [
-        stage,
-        Object.fromEntries(Object.keys(fields).map((name) => [name, null])),
-      ]),
-    ),
-    null,
-    2,
-  );
-}
-
 function easyModel(targets) {
   const worlds = Array.from({ length: 8 }, (_, i) => [
     i >> 2,
@@ -111,9 +98,7 @@ function easy(random) {
   if (!candidates.length) throw Error("No balanced easy case");
   const actual = random.choose(candidates);
   const answer = { knowledge: keys[actual] };
-  const prompt = `Am I nerfed — easy
-
-Three agents A, B, C each have a fixed bit a, b, c. Every one of the eight triples is initially possible. Each agent privately sees only their own bit; there are no swaps or later bit observations.
+  const prompt = `Three agents A, B, C each have a fixed bit a, b, c. Every one of the eight triples is initially possible. Each agent privately sees only their own bit; there are no swaps or later bit observations.
 
 Target bits: (${targets.join(",")}). Let F mean (a = ${targets[0]} AND b = ${targets[1]}) OR c = ${targets[2]}.
 
@@ -126,12 +111,8 @@ Speakers remember their own replies. Everyone knows who hears each reply and tha
 
 Actual initial bits (a,b,c): (${run.worlds[actual].join(",")}).
 
-Return these eight Booleans in the schema below. report_C and report_A are the two spoken replies. The other fields ask:
-${EASY_QUERIES.map(([name, , , description]) => `- ${name}: ${description}.`).join("\n")}
-
-Return only JSON; replace each null with true or false. If unsolved, leave null; no explanations or tools.
-${schema(answer)}
-`;
+report_C and report_A are the two spoken replies. The other fields ask:
+${EASY_QUERIES.map(([name, , , description]) => `- ${name}: ${description}.`).join("\n")}`;
   return { prompt, answer };
 }
 
@@ -199,9 +180,7 @@ function normal(random) {
     knowledge: knowledgeAnswers(run, actual),
     counterfactual,
   };
-  const prompt = `Am I nerfed — normal
-
-Three agents A, B, C initially have bits (a0,b0,c0). All eight triples and all three events are possible, independently: e=0 does nothing; e=1 swaps A's and B's bits; e=2 swaps A's and C's bits. Thus there are 24 possible initial-triple/event histories. Bits after the event are (a,b,c). Each agent initially sees only their own bit. After the event only A privately sees their current bit, and only B privately learns e. C gets no new observation. There are no other observations.
+  const prompt = `Three agents A, B, C initially have bits (a0,b0,c0). All eight triples and all three events are possible, independently: e=0 does nothing; e=1 swaps A's and B's bits; e=2 swaps A's and C's bits. Thus there are 24 possible initial-triple/event histories. Bits after the event are (a,b,c). Each agent initially sees only their own bit. After the event only A privately sees their current bit, and only B privately learns e. C gets no new observation. There are no other observations.
 
 Gates (x,y,z): (${gates.join(",")}). F is the Boolean proposition (a XOR x) AND (b XOR y XOR ([e=2] AND z)); [e=2] is 1 when e=2 and 0 otherwise. XOR is addition modulo two, and bits 1/0 mean true/false.
 
@@ -214,18 +193,14 @@ Speakers remember their own replies. Everyone knows who hears each reply and tha
 
 Actual initial bits (a0,b0,c0): (${initial.join(",")}); actual event e=${event}.
 
-Stages: physical = after bit/event observations, before replies; after B = immediately after B's reply; final = after both replies. Every occurrence of a, b, c means the current post-event bit. Answer knowledge.report_B and knowledge.report_A with the two spoken replies. The other knowledge fields mean:
+Stages: physical = after bit/event observations, before replies; after B = immediately after B's reply; final = after both replies. Every occurrence of a, b, c means the current post-event bit. report_B and report_A are the two spoken replies. The other fields mean:
 ${NORMAL_DESCRIPTIONS.map(([name, description]) => `- ${name}: ${description}.`).join("\n")}
 
 For each counterfactual, restart the entire protocol independently with the same actual initial bits and event, except where changed below. All agents commonly know the changed rule from the start. Recompute both replies and every nested knowledge claim; do not carry over factual-world reply values.
 - public_event_C_knows_current_C: e is announced to everyone at the physical stage; answer final W_C(c = 1).
 - public_reports_C_decides_B_decides_F: both replies are heard by everyone; answer final W_C(W_B(F)).
 - forget_A_report_A: A never sees a0 (instead of losing memory after seeing it); A still sees a after the event. Answer A's second reply.
-- no_swap_report_B: only e=0 is possible, commonly known from the start, so the universe has eight histories and F uses e=0. Answer B's first reply.
-
-Return only JSON in this schema; replace each null with true or false. If unsolved, leave null; no explanations or tools.
-${schema(answer)}
-`;
+- no_swap_report_B: only e=0 is possible, commonly known from the start, so the universe has eight histories and F uses e=0. Answer B's first reply.`;
   return { prompt, answer };
 }
 

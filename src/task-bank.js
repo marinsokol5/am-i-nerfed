@@ -4,7 +4,8 @@ import { generateCompact } from "./compact.js";
 import { hardCoordination } from "./hard-coordination.js";
 import { solveScores } from "./coordination.js";
 
-export const TASK_BANK_VERSION = 1;
+// Version 2 presents the same puzzles as version 1 with typed response shapes.
+export const TASK_BANK_VERSION = 2;
 export const LEVELS = ["easy", "medium", "hard"];
 export const hash = (value) =>
   createHash("sha256")
@@ -12,15 +13,46 @@ export const hash = (value) =>
     .digest("hex");
 const derive = (seed, label) =>
   createHmac("sha256", seed)
-    .update(`assessment-bank/${TASK_BANK_VERSION}/${label}`)
+    // Fixed at 1 so later bank versions regenerate the same puzzles per seed.
+    .update(`assessment-bank/1/${label}`)
     .digest("hex");
-const blank = (value) =>
+// Response shapes mirror the answer with a type name at each leaf: JSON
+// primitives in lowercase, capitalized names defined in the task's types.
+const shape = (value, type) =>
   value && typeof value === "object"
-    ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, blank(v)]))
-    : null;
-const schema = (answer) =>
-  "\nSubmit partial or complete JSON in this shape; unknown fields may be null:\n" +
-  JSON.stringify(blank(answer), null, 2);
+    ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, shape(v, type)]))
+    : type;
+const FRACTION = { Fraction: 'exact rational string, e.g. "3/2"' };
+// Answer keys group fields by scoring stage; solvers see one flat object.
+export function flatten(answer) {
+  const flat = {};
+  for (const fields of Object.values(answer))
+    for (const [key, value] of Object.entries(fields)) {
+      if (Object.hasOwn(flat, key)) throw Error(`Duplicate answer field ${key}`);
+      flat[key] = value;
+    }
+  return flat;
+}
+export function nest(answer, flat) {
+  if (flat === null || typeof flat !== "object" || Array.isArray(flat))
+    return flat;
+  return Object.fromEntries(
+    Object.entries(answer).map(([stage, fields]) => [
+      stage,
+      Object.fromEntries(
+        Object.keys(fields)
+          .filter((key) => Object.hasOwn(flat, key))
+          .map((key) => [key, flat[key]]),
+      ),
+    ]),
+  );
+}
+// Leaf names and values in order: equal lists mean the same puzzle answers,
+// even when a later version regroups fields.
+export const answerLeaves = (value, key = "") =>
+  value && typeof value === "object"
+    ? Object.entries(value).flatMap(([k, v]) => answerLeaves(v, k))
+    : [[key, value]];
 const names = "ABCDEFGH";
 
 // Port of the lab's public-announcement hat solver. Partition once per turn.
@@ -126,7 +158,15 @@ function hats(seed, level) {
       },
     };
     const prompt = `${n} people (${base.map((i) => names[i]).join(", ")}) wear exactly ${counts.map((v, i) => `${v} ${colors[i]}`).join(", ")} hats. Nobody sees their own hat.\nVisibility:\n${visibility.map((v, i) => `${names[i]} sees ${v.map((j) => names[j]).join(", ")}.`).join("\n")}\nEveryone knows the counts, visibility, protocol, and everyone's perfect reasoning, commonly. On each turn a person MUST name their own color if certain from their view and every preceding public reply; otherwise they say unknown. There are no other signals. They speak in order ${base.map((i) => names[i]).join(", ")} for ${rounds} round(s), retaining all previous replies.\nObserved transcript:\n${first.replies.map((a, i) => `Round ${Math.floor(i / n) + 1}, ${names[order[i]]}: ${color(a)}`).join("\n")}\nFind all hats. Then restart from scratch with the same hats but order ${alt.map((i) => names[i]).join(", ")} in each of ${rounds} round(s), commonly known from the beginning; nobody has heard the original transcript. Predict every reply in that alternative run.`;
-    return { prompt: prompt + schema(answer), answer };
+    return {
+      prompt,
+      answer,
+      types: { Color: colors, Reply: [...colors, "unknown"] },
+      response: {
+        hats: shape(answer.knowledge.hats, "Color"),
+        alternative: shape(answer.knowledge.alternative, "Reply"),
+      },
+    };
   }
   throw Error(
     "Could not generate a unique hat task; retry initialization with a new seed.",
@@ -218,9 +258,9 @@ function cards(seed, level) {
     const answer = { knowledge: { card: cardName(actual), remaining } };
     return {
       prompt:
-        `One card is drawn from this complete public list:\n${all.map(cardName).join("\n")}\nAnn sees only color; Bob only shape; Cid only number. The list, observations and perfect truthful reasoning are common knowledge. All replies are public. Each statement describes knowledge AFTER all preceding replies.\n${dialogue.map((s, i) => `${i + 1}. ${speaker[s.i]}: ${text(s)}`).join("\n")}\nIdentify the card, using its exact three-word spelling above. After each reply, count the cards still possible for an observer who hears the dialogue but sees no attribute.` +
-        schema(answer),
+        `One card is drawn from this complete public list:\n${all.map(cardName).join("\n")}\nAnn sees only color; Bob only shape; Cid only number. The list, observations and perfect truthful reasoning are common knowledge. All replies are public. Each statement describes knowledge AFTER all preceding replies.\n${dialogue.map((s, i) => `${i + 1}. ${speaker[s.i]}: ${text(s)}`).join("\n")}\nIdentify the card, using its exact three-word spelling above. After each reply, count the cards still possible for an observer who hears the dialogue but sees no attribute.`,
       answer,
+      response: { card: "string", remaining: shape(remaining, "integer") },
     };
   }
   throw Error("Could not generate card dialogue.");
@@ -292,10 +332,12 @@ export function tracking(seed, level) {
       queries.map((q, i) => [`q${i + 1}`, q.value]),
     ),
   };
-  const prompt = `Track objects and beliefs using these EXACT rules. Initially everyone sees ${objects.map((o) => `${o} in ${initial[o]}`).join(", ")}. A move changes reality; only its named witnesses see it. A whisper changes no object, is heard only by its two named participants, and reports the speaker's current belief (which can be false). Each person believes the most recent move or whisper they witnessed about that object. For nested beliefs, use the most recent event about the object witnessed by EVERY person in the named chain; if none, use the initial location. Do not infer anything else, including from absences. This stipulated update rule applies regardless of chain order.\n${events.map((e, i) => `${i + 1}. ${e.whisper ? `${e.audience[0]} whispers to ${e.audience[1]}: ${e.object} is in ${e.place}` : `${e.object} moved to ${e.place}; witnesses: ${e.audience.join(", ")}`}.`).join("\n")}\nAnswer with one of ${places.join(", ")}:\n${queries.map((q, i) => `q${i + 1}: ${q.chain.length ? `${q.chain.join(" thinks ")} thinks: where is ${q.object}?` : `Where is ${q.object} actually?`}`).join("\n")}`;
+  const prompt = `Track objects and beliefs using these EXACT rules. Initially everyone sees ${objects.map((o) => `${o} in ${initial[o]}`).join(", ")}. A move changes reality; only its named witnesses see it. A whisper changes no object, is heard only by its two named participants, and reports the speaker's current belief (which can be false). Each person believes the most recent move or whisper they witnessed about that object. For nested beliefs, use the most recent event about the object witnessed by EVERY person in the named chain; if none, use the initial location. Do not infer anything else, including from absences. This stipulated update rule applies regardless of chain order.\n${events.map((e, i) => `${i + 1}. ${e.whisper ? `${e.audience[0]} whispers to ${e.audience[1]}: ${e.object} is in ${e.place}` : `${e.object} moved to ${e.place}; witnesses: ${e.audience.join(", ")}`}.`).join("\n")}\nQuestions:\n${queries.map((q, i) => `q${i + 1}: ${q.chain.length ? `${q.chain.join(" thinks ")} thinks: where is ${q.object}?` : `Where is ${q.object} actually?`}`).join("\n")}`;
   return {
-    prompt: prompt + schema(answer),
+    prompt,
     answer,
+    types: { Place: places },
+    response: shape(answer.knowledge, "Place"),
     oracle: {
       initial,
       events,
@@ -305,21 +347,37 @@ export function tracking(seed, level) {
 }
 
 function knowledge(seed, level) {
-  if (level < 2) return generateCompact(seed, level === 0 ? "easy" : "normal");
+  if (level < 2) {
+    const { prompt, answer } = generateCompact(
+      seed,
+      level === 0 ? "easy" : "normal",
+    );
+    return { prompt, answer, response: shape(flatten(answer), "boolean") };
+  }
   const first = generateCompact(derive(seed, "first"), "normal"),
     second = generateCompact(derive(seed, "second"), "normal");
   const answer = {
-    knowledge: { scenarioA: first.answer, scenarioB: second.answer },
+    knowledge: {
+      scenarioA: flatten(first.answer),
+      scenarioB: flatten(second.answer),
+    },
   };
   return {
-    prompt:
-      `Solve these two independent protocols. Their agents and observations are separate. Use the combined answer schema at the END.\nSCENARIO A\n${first.prompt}\nSCENARIO B\n${second.prompt}\nCombined submission (ignore the individual submission shapes above):` +
-      schema(answer),
+    prompt: `Solve these two independent protocols. Their agents and observations are separate. Answer scenario A under scenarioA and scenario B under scenarioB.\nSCENARIO A\n${first.prompt}\nSCENARIO B\n${second.prompt}`,
     answer,
+    response: shape(answer.knowledge, "boolean"),
   };
 }
 function coordination(seed, level) {
-  if (level === 2) return hardCoordination(seed);
+  if (level === 2) {
+    const { prompt, answer } = hardCoordination(seed);
+    return {
+      prompt,
+      answer,
+      types: FRACTION,
+      response: shape(answer.coordination, "Fraction"),
+    };
+  }
   const r = randomSource(seed),
     rows = Array.from({ length: 8 }, (_, i) => [i >> 2, (i >> 1) & 1, i & 1]);
   const targets = [0, 1].map(() => rows.map(() => r.integer(3)));
@@ -336,9 +394,10 @@ function coordination(seed, level) {
   };
   return {
     prompt:
-      `Three agents A, B, C see only their own bit a, b, c. All eight rows below are possible in each of two hidden modes. The table, observations and rules are common knowledge. Nobody separately observes the mode, row, other bits, or qualified agent.\nabc | qualified in mode 1 | qualified in mode 2\n${rows.map((w, i) => `${w.join("")} | ${names[targets[0][i]]} | ${names[targets[1][i]]}`).join("\n")}\nEach agent dispatches (1) or waits (0). A row succeeds exactly when one agent dispatches and it is the qualified agent. A deterministic policy maps each agent's own observation to its action. Identical observations require identical actions. The SAME policy handles both modes. Let s1 and s2 count successful rows in the two modes.\nOptimize independently:\nbase: maximize min(s1,s2), simultaneous actions without messages.\nmode_1: maximize s1 alone under a base policy.\nmode_2: maximize s2 alone under a base policy.${level ? "\nmixed: a shared random draw independent of row/mode selects a complete base policy; maximize min(E[s1],E[s2]), expectation BEFORE minimum.\nbinding: A acts first; B and C observe its irrevocable action then act simultaneously using that and their own bits. All actions count. Maximize min(s1,s2).\nbroadcast: A announces one bit based on a, then everyone acts simultaneously using that message and their own bit. The message does not constrain A's action. Maximize min(s1,s2)." : ""}\nNo additional signals, observations, retries or private randomness. Return exact maxima as rational strings, e.g. "3/2".` +
-      schema(answer),
+      `Three agents A, B, C see only their own bit a, b, c. All eight rows below are possible in each of two hidden modes. The table, observations and rules are common knowledge. Nobody separately observes the mode, row, other bits, or qualified agent.\nabc | qualified in mode 1 | qualified in mode 2\n${rows.map((w, i) => `${w.join("")} | ${names[targets[0][i]]} | ${names[targets[1][i]]}`).join("\n")}\nEach agent dispatches (1) or waits (0). A row succeeds exactly when one agent dispatches and it is the qualified agent. A deterministic policy maps each agent's own observation to its action. Identical observations require identical actions. The SAME policy handles both modes. Let s1 and s2 count successful rows in the two modes.\nOptimize independently:\nbase: maximize min(s1,s2), simultaneous actions without messages.\nmode_1: maximize s1 alone under a base policy.\nmode_2: maximize s2 alone under a base policy.${level ? "\nmixed: a shared random draw independent of row/mode selects a complete base policy; maximize min(E[s1],E[s2]), expectation BEFORE minimum.\nbinding: A acts first; B and C observe its irrevocable action then act simultaneously using that and their own bits. All actions count. Maximize min(s1,s2).\nbroadcast: A announces one bit based on a, then everyone acts simultaneously using that message and their own bit. The message does not constrain A's action. Maximize min(s1,s2)." : ""}\nNo additional signals, observations, retries or private randomness. Return exact maxima.`,
     answer,
+    types: FRACTION,
+    response: shape(answer.coordination, "Fraction"),
   };
 }
 export function generateTaskBank(seed) {
@@ -351,19 +410,19 @@ export function generateTaskBank(seed) {
   ];
   const tasks = LEVELS.flatMap((difficulty, level) =>
     families.map(([family, generate], index) => {
-      const item = generate(derive(seed, `${difficulty}/${family}`), level);
-      const body = item.prompt.replaceAll(
-        "Am I nerfed — normal",
-        "Private knowledge protocol",
+      const { prompt, answer, types = {}, response } = generate(
+        derive(seed, `${difficulty}/${family}`),
+        level,
       );
-      const prompt = `Am I nerfed: ${difficulty}, ${family}\n\n${body}\n\nReason yourself without code, browsing, private-file inspection or other agents. Question retrieval, partial answers and clock checks through the assessment CLI are permitted transport operations.`;
       return {
         id: `${difficulty}-${index + 1}`,
         difficulty,
         family,
-        prompt,
-        promptHash: hash(prompt),
-        answer: item.answer,
+        prompt: prompt.trim(),
+        promptHash: hash({ prompt: prompt.trim(), types, response }),
+        types,
+        response,
+        answer,
       };
     }),
   );

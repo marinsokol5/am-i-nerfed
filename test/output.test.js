@@ -80,27 +80,31 @@ test("completed status keeps scores compact and normalizes legacy receipts witho
   assert.equal("bankHash" in history, false);
 });
 
-test("question returns only task content, draft, task ID and remaining seconds, without wrapper instructions", t => {
-  const f = fixture(t), start = f.json("start", "--seconds", "500");
+test("question returns task text, response shape, submitted answers and remaining seconds only", t => {
+  const f = fixture(t), start = f.json("start", "--seconds", "500", "--difficulty", "easy");
   const taskId = start.tasks[0].id;
   const question = f.json("question", "--run", start.runId, "--task", taskId);
-  assert.deepEqual(Object.keys(question), ["taskId", "Task", "draft", "remainingSeconds"]);
+  assert.deepEqual(Object.keys(question), ["taskId", "remainingSeconds", "task", "types", "response", "submitted"]);
   assert.equal(question.taskId, taskId);
-  assert.equal(typeof question.Task, "string");
-  assert.doesNotMatch(question.Task, /^Am I nerfed:/);
-  assert.doesNotMatch(question.Task, /Reason yourself without code/);
+  assert.doesNotMatch(question.task, /Am I nerfed|Reason yourself without code|Submit partial|null/);
+  // easy-1 is hats: named enums, a flat shape without the scoring stage, and an empty start.
+  assert.deepEqual(question.types.Reply, [...question.types.Color, "unknown"]);
+  assert.deepEqual(Object.keys(question.response), ["hats", "alternative"]);
+  assert.ok(Object.values(question.response.hats).every(type => type === "Color"));
+  assert.ok(Object.values(question.response.alternative).every(type => type === "Reply"));
+  assert.deepEqual(question.submitted, {});
+  assert.ok(question.remainingSeconds > 0 && question.remainingSeconds <= 500);
   const bankFile = path.join(f.home, "baselines", start.baselineId, "task-bank.json");
   const bankBefore = fs.readFileSync(bankFile, "utf8");
-  const storedPrompt = JSON.parse(bankBefore).tasks.find(task => task.id === taskId).prompt;
-  assert.equal(question.Task, storedPrompt.slice(storedPrompt.indexOf("\n\n") + 2, storedPrompt.lastIndexOf("\n\n")));
-  assert.ok(question.remainingSeconds > 0 && question.remainingSeconds <= 500);
-  assert.equal(question.draft, null);
-  const draft = { saved: "answer data", bankHash: "answer data" };
+  assert.equal(question.task, JSON.parse(bankBefore).tasks.find(task => task.id === taskId).prompt);
+  const draft = { hats: { A: question.types.Color[0] }, marin: 5 };
   f.json("answer", "--run", start.runId, "--task", taskId, "--json", JSON.stringify(draft));
   const revised = f.json("question", "--run", start.runId, "--task", taskId);
-  assert.deepEqual(revised, { ...question, draft, remainingSeconds: revised.remainingSeconds });
+  assert.deepEqual(revised, { ...question, submitted: draft, remainingSeconds: revised.remainingSeconds });
   assert.ok(revised.remainingSeconds <= question.remainingSeconds);
   assert.equal(fs.readFileSync(bankFile, "utf8"), bankBefore);
+  const boolean = f.json("question", "--run", start.runId, "--task", start.tasks[2].id);
+  assert.equal("types" in boolean, false);
   const unsupported = f.exec("question", "--run", start.runId, "--task", taskId, "--verbose");
   assert.equal(unsupported.status, 1);
   assert.equal(unsupported.stdout, "");
@@ -139,7 +143,7 @@ process.stdin.on('end',()=>{
   const call=(args)=>{const r=cp.spawnSync('./assessment',args,{encoding:'utf8'});if(r.status)throw Error(r.stderr);return JSON.parse(r.stdout);};
   const started=call(['start']);
   const question=call(['question','--task',started.tasks[0].id]);
-  if(JSON.stringify(Object.keys(question))!==JSON.stringify(['taskId','Task','draft','remainingSeconds']) || question.Task.startsWith('Am I nerfed:') || question.Task.includes('Reason yourself without code'))throw Error('Question leaked wrapper text or run metadata');
+  if(!['taskId','remainingSeconds','task','response','submitted'].every(k=>k in question) || 'runId' in question || question.task.includes('Reason yourself without code'))throw Error('Question leaked wrapper text or run metadata');
   const compact=call(['status']);
   const verbose=call(['status','--verbose']);
   if('taskBankHash' in compact || 'family' in compact.tasks[0] || !verbose.taskBankHash || !verbose.tasks[0].family)throw Error('Wrong native status projection');

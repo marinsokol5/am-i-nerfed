@@ -53,10 +53,7 @@ export function hardCoordination(seed) {
         `${symbols.join("")} | ${weights[i]} | ${"ABC"[targets[0][i]]} | ${"ABC"[targets[1][i]]}`,
     )
     .join("\n");
-  const output = Object.fromEntries(CASES.map((name) => [name, null]));
-  const prompt = `Am I nerfed — coordination (hard)
-
-A, B, C must coordinate dispatches. Each privately observes one symbol a, b, c from {0,1,2}. The eighteen rows below are ALL possible histories in EACH of two hidden modes; unlisted triples are impossible. Each agent sees only their own symbol. The mode, row number, other symbols, weight and qualified agent are never separately observed. Everyone commonly knows this table and every rule; agents may infer facts from their own symbol and the table.
+  const prompt = `A, B, C must coordinate dispatches. Each privately observes one symbol a, b, c from {0,1,2}. The eighteen rows below are ALL possible histories in EACH of two hidden modes; unlisted triples are impossible. Each agent sees only their own symbol. The mode, row number, other symbols, weight and qualified agent are never separately observed. Everyone commonly knows this table and every rule; agents may infer facts from their own symbol and the table.
 
 abc | weight | qualified in mode 1 | qualified in mode 2
 ${table}
@@ -71,9 +68,7 @@ Optimize each requested value independently; action rules can differ between cas
 - binding: deterministic robust optimum when A acts first. B and C both observe A's actual action, then act simultaneously using their own symbol and that action. A cannot change its action. All three actions count toward success.
 - broadcast: deterministic robust optimum when A first announces one freely chosen BINARY bit based only on a. Then all three act simultaneously using their own symbol and the announced bit. The message is not an action and does not constrain A's later action. It has only two possible values even though a has three.
 
-No additional observations, signals, retries or private randomness are allowed. Answer all six maxima, not one example protocol. Submit this JSON through the assessment CLI, replacing each null with an exact rational string such as "3/2" or "4/1". Leave null if unsolved; do not use tools to calculate answers.
-${JSON.stringify({ coordination: output }, null, 2)}
-`;
+No additional observations, signals, retries or private randomness are allowed. Answer all six exact maxima, not one example protocol.`;
   return {
     difficulty: "hard",
     prompt,

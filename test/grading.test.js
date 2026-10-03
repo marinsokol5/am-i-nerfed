@@ -45,6 +45,12 @@ test("wrong schemas do not prevent correct siblings, outputs contain no field an
   assert.equal(JSON.stringify(result).includes("Example"), false);
   assert.equal(JSON.stringify(result).includes("incorrect_fields"), false);
 });
+test("extra keys are ignored without marking the submission invalid", () => {
+  const easy = { knowledge: { first: true } };
+  const result = grade(easy, { knowledge: { first: true, marin: 5 }, extra: 1 });
+  assert.equal(result.percent, 100);
+  assert.equal(result.submissionStatus, "scored_json");
+});
 test("rational score fields use exact equality without tolerance", () => {
   assert.equal(
     grade(answer, { coordination: { base: 0.6666666666666666 } }).stages

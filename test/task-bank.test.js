@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { generateTaskBank, tracking } from "../src/task-bank.js";
+import {
+  flatten,
+  generateTaskBank,
+  nest,
+  tracking,
+} from "../src/task-bank.js";
 import { grade } from "../src/grading.js";
 
 test("private banks deterministically contain five distinct tasks at each level", () => {
@@ -180,5 +185,37 @@ test("card dialogues independently reduce the public list to the keyed card and 
     assert.equal(possible.length, 1);
     assert.equal(possible[0].join(" "), task.answer.knowledge.card);
     assert.deepEqual(counts, task.answer.knowledge.remaining);
+  }
+});
+
+test("every task presents a flat typed response shape that grades through nest", () => {
+  const primitives = new Set(["boolean", "integer", "string"]);
+  const leaves = (value) =>
+    value && typeof value === "object"
+      ? Object.values(value).flatMap(leaves)
+      : [value];
+  const keys = (value) =>
+    value && typeof value === "object"
+      ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, keys(v)]))
+      : true;
+  for (const task of generateTaskBank("synthetic-response-shapes").tasks) {
+    const flat = flatten(task.answer);
+    assert.deepEqual(keys(task.response), keys(flat), task.id);
+    for (const type of leaves(task.response))
+      assert.ok(primitives.has(type) || Object.hasOwn(task.types, type), task.id);
+    // Each keyed value belongs to the type its field names.
+    const check = (type, value) =>
+      type && typeof type === "object"
+        ? Object.keys(type).forEach((k) => check(type[k], value[k]))
+        : Array.isArray(task.types[type])
+          ? assert.ok(task.types[type].includes(value), task.id)
+          : assert.equal(
+              typeof value,
+              { boolean: "boolean", integer: "number" }[type] ?? "string",
+              task.id,
+            );
+    check(task.response, flat);
+    assert.equal(grade(task.answer, nest(task.answer, flat)).percent, 100, task.id);
+    assert.doesNotMatch(task.prompt, /Am I nerfed|null|Reason yourself/, task.id);
   }
 });

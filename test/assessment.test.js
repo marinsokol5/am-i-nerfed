@@ -6,7 +6,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { generateTaskBank } from "../src/task-bank.js";
+import { flatten, generateTaskBank } from "../src/task-bank.js";
 import {
   startAssessment,
   assessmentAction,
@@ -61,7 +61,7 @@ test("five-task run preserves partial work, grades equally and permanently close
     assessmentAction(
       f.state,
       "answer",
-      { runId, taskId, patch: { knowledge: { a: true, b: true } } },
+      { runId, taskId, patch: { a: true, b: true } },
       () => now + 1,
     );
     assessmentAction(
@@ -71,7 +71,7 @@ test("five-task run preserves partial work, grades equally and permanently close
         runId,
         taskId,
         patch: JSON.parse(
-          '{"knowledge":{"b":null},"__proto__":{"polluted":true}}',
+          '{"b":null,"__proto__":{"polluted":true}}',
         ),
       },
       () => now + 2,
@@ -82,7 +82,8 @@ test("five-task run preserves partial work, grades equally and permanently close
       { runId, taskId },
       () => now + 3,
     );
-    assert.deepEqual(question.draft.knowledge, { a: true, b: null });
+    assert.equal(question.submitted.a, true);
+    assert.equal(question.submitted.b, null);
     assert.equal({}.polluted, undefined);
     assert.equal(question.result, undefined);
     assessmentAction(
@@ -94,7 +95,7 @@ test("five-task run preserves partial work, grades equally and permanently close
     assessmentAction(
       f.state,
       "answer",
-      { runId, taskId, patch: bank.tasks.find((t) => t.id === taskId).answer },
+      { runId, taskId, patch: flatten(bank.tasks.find((t) => t.id === taskId).answer) },
       () => now + 5,
     );
     const receipt = assessmentAction(
@@ -133,7 +134,7 @@ test("exact deadline and processing that crosses it reject new work, freezing th
     const result = assessmentAction(
       f.state,
       "answer",
-      { runId, taskId, patch: bank.tasks.find((t) => t.id === taskId).answer },
+      { runId, taskId, patch: flatten(bank.tasks.find((t) => t.id === taskId).answer) },
       () => ticks.shift(),
     );
     assert.equal(result.accepted, false);
@@ -184,7 +185,7 @@ test("history separates invocation, difficulty, package and task versions, and s
       invocation: "skill",
       effort: "high",
       model: "m1",
-      taskBankVersion: "1",
+      taskBankVersion: "2",
       appVersion: b.appVersion,
     }).runs;
     assert.equal(filtered.length, 1);
@@ -308,7 +309,7 @@ test("arbitrary whole-second budgets retain their exact deadline and history ide
       assert.equal(Date.parse(start.clock.deadlineAt) - now, seconds * 1000);
       const runId = start.runId,
         taskId = start.tasks[0].id;
-      const answer = bank.tasks.find((t) => t.id === taskId).answer;
+      const answer = flatten(bank.tasks.find((t) => t.id === taskId).answer);
       assert.equal(
         assessmentAction(
           f.state,
@@ -332,6 +333,30 @@ test("arbitrary whole-second budgets retain their exact deadline and history ide
         1,
       );
     }
+  } finally {
+    f.cleanup();
+  }
+});
+
+test("starting a run upgrades a version 1 bank only when its answers regenerate identically", () => {
+  const legacy = structuredClone(bank);
+  legacy.taskBankVersion = 1;
+  for (const task of legacy.tasks) {
+    delete task.types;
+    delete task.response;
+    task.prompt = `Am I nerfed: ${task.difficulty}\n\n${task.prompt}`;
+  }
+  const f = fixture(),
+    file = path.join(f.state.base, "task-bank.json");
+  try {
+    fs.writeFileSync(file, JSON.stringify(legacy));
+    const start = startAssessment(f.state, { difficulty: "easy" });
+    assert.equal(start.taskBankVersion, 2);
+    assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")), bank);
+    legacy.tasks[0].answer.knowledge.hats.A = "not-a-color";
+    fs.writeFileSync(file, JSON.stringify(legacy));
+    assert.throws(() => startAssessment(f.state, {}), /reset/);
+    assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).taskBankVersion, 1);
   } finally {
     f.cleanup();
   }
