@@ -8,7 +8,8 @@ import { solveScores } from "./coordination.js";
 // Version 3 regenerates hard knowledge scenario B when it repeats scenario A.
 // Version 4 randomizes knowledge protocol structure, not only bit labels.
 // Version 5 asks only hats nobody names and caps what copying predicts.
-export const TASK_BANK_VERSION = 5;
+// Version 6 caps the most common alternative reply at half.
+export const TASK_BANK_VERSION = 6;
 export const LEVELS = ["easy", "medium", "hard"];
 export const hash = (value) =>
   createHash("sha256")
@@ -139,6 +140,18 @@ function hats(seed, level) {
       Array.from({ length: rounds }, () => alt).flat(),
       actual,
     );
+    // Copying each person's reply from the same original round must not
+    // predict most of the alternative run.
+    const copied = second.replies.filter(
+      (a, i) => a === first.replies[Math.floor(i / n) * n + alt[i % n]],
+    ).length;
+    if (2 * copied > second.replies.length) continue;
+    // No single reply (usually "unknown") may fill most of the alternative
+    // run, or answering it everywhere would score well without reasoning.
+    const replyCounts = new Map();
+    for (const a of second.replies)
+      replyCounts.set(a, (replyCounts.get(a) ?? 0) + 1);
+    if (2 * Math.max(...replyCounts.values()) > second.replies.length) continue;
     const initialKnowledge = base.map(
       (s) => hatRun(worlds, visibility, [s], actual).replies[0],
     );
@@ -155,12 +168,6 @@ function hats(seed, level) {
         .some((a, i) => a !== -1 && first.replies[i] === -1)
     )
       continue;
-    // Copying each person's reply from the same original round must not
-    // predict most of the alternative run.
-    const copied = second.replies.filter(
-      (a, i) => a === first.replies[Math.floor(i / n) * n + alt[i % n]],
-    ).length;
-    if (2 * copied > second.replies.length) continue;
     const color = (a) => (a === -1 ? "unknown" : colors[a]);
     const answer = {
       knowledge: {

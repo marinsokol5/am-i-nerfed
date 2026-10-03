@@ -116,6 +116,11 @@ test("hat answers are independently determined from the public transcript, inclu
       ([name, reply]) => original[name] === reply,
     ).length;
     assert.ok(2 * copied <= Object.keys(expected).length);
+    // No single reply fills more than half of the alternative run.
+    const tally = {};
+    for (const reply of Object.values(expected))
+      tally[reply] = (tally[reply] ?? 0) + 1;
+    assert.ok(2 * Math.max(...Object.values(tally)) <= Object.keys(expected).length);
   }
 });
 test("tracking keys match a forward replay of every observer subset", () => {
