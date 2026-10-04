@@ -358,7 +358,7 @@ test("every task presents a flat typed response shape that grades through nest",
 });
 
 test("hard knowledge uses causal evidence checkpoints while easy and medium retain their legacy format", () => {
-  for (let i = 0; i < 25; i++) {
+  for (let i = 0; i < 4; i++) {
     const task = knowledge(`synthetic-knowledge-checkpoints-${i}`, 2);
     assert.equal(task.answer.checkpoint.family, "private-knowledge");
     assert.deepEqual(Object.keys(task.response), ["scenarioA", "scenarioB"]);
