@@ -391,7 +391,7 @@ function gcd(left, right) {
   return left;
 }
 
-function fraction(numerator, denominator = 1n) {
+export function fraction(numerator, denominator = 1n) {
   if (!denominator) throw new RangeError("Zero denominator");
   if (denominator < 0n) [numerator, denominator] = [-numerator, -denominator];
   const divisor = gcd(numerator, denominator);

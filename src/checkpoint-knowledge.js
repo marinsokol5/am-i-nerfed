@@ -1,12 +1,12 @@
 import { createHmac } from "node:crypto";
 import { randomSource } from "./random.js";
+import { isObject, sameSet } from "./values.js";
 
 const AGENTS = "ABCD";
 const AGENT_IDS = [0, 1, 2, 3];
 const WORLD_COUNT = 64;
 const EVIDENCE_CELL_CAP = 12;
 const MAX_GENERATION_ATTEMPTS = 16_384;
-const plainObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const bitCount = (mask) => { let count = 0; for (; mask; mask &= mask - 1n) count++; return count; };
 const variantDescriptions = {
   main: "the factual protocol",
@@ -397,23 +397,22 @@ const historyArray = (actual) => Array.isArray(actual) && actual.length <= WORLD
   && Array.from({ length: actual.length }, (_, i) => Object.hasOwn(actual, i)
     && typeof actual[i] === "string" && /^(?:[01]{3}:[012]|[01]{4}:[0123])$/.test(actual[i])).every(Boolean)
   && new Set(actual).size === actual.length;
-const sameSet = (actual, expected) => historyArray(actual) && actual.length === expected.length
-  && Array.from(actual).every((value) => expected.includes(value));
+const sameHistories = (actual, expected) => historyArray(actual) && sameSet(actual, expected);
 
 export function gradeSingle(task, draft) {
-  const supplied = plainObject(draft) ? draft : {};
+  const supplied = isObject(draft) ? draft : {};
   const checkpoints = Object.entries(task.metadata.weights).map(([id, max]) => {
     let correct = false;
     const present = Object.hasOwn(supplied, id), actual = supplied[id];
     if (present && id.endsWith("Evidence")) {
       const certificate = task.metadata.certificates[id.slice(0, -8)];
-      if (certificate.value) correct = sameSet(actual, certificate.possible);
+      if (certificate.value) correct = sameHistories(actual, certificate.possible);
       else if (certificate.operator === "K") correct = historyArray(actual) && actual.length === 1
         && certificate.falseHistories.includes(actual[0]);
       else correct = historyArray(actual) && actual.length === 2
         && ((certificate.trueHistories.includes(actual[0]) && certificate.falseHistories.includes(actual[1]))
           || (certificate.falseHistories.includes(actual[0]) && certificate.trueHistories.includes(actual[1])));
-    } else if (present) correct = Array.isArray(task.answer[id]) ? sameSet(actual, task.answer[id])
+    } else if (present) correct = Array.isArray(task.answer[id]) ? sameHistories(actual, task.answer[id])
       : typeof actual === "boolean" && actual === task.answer[id];
     return { id, earned: correct ? max : 0, max,
       detail: correct ? "valid" : present ? "incorrect" : "omitted" };
@@ -494,8 +493,8 @@ ${second.prompt}`;
 /** Legacy single-scenario checkpoints remain scoreable without regenerating
  * their private state. Paired tasks normalize each independent scale to 50. */
 export function gradeTask(task, draft) {
-  if (!plainObject(task.scenarios)) return gradeSingle(task, draft);
-  const supplied = plainObject(draft) ? draft : {};
+  if (!isObject(task.scenarios)) return gradeSingle(task, draft);
+  const supplied = isObject(draft) ? draft : {};
   const results = Object.entries(task.scenarios).map(([id, scenario]) => ({ id,
     result: gradeSingle(scenario, Object.hasOwn(supplied, id) ? supplied[id] : undefined) }));
   const divisor = results.length;

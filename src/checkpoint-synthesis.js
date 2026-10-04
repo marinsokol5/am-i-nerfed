@@ -1,10 +1,10 @@
 import { randomSource } from "./random.js";
+import { isObject, sameSet } from "./values.js";
 
 const ALPHABET = "ABCDEF";
 const IDENTITY = Array.from({ length: 16 }, (_, i) => i);
 const MAIN_LENGTH = 14;
 const FORWARD_DEPTH = MAIN_LENGTH / 2;
-const plainObject = (x) => x !== null && typeof x === "object" && !Array.isArray(x);
 const validProgram = (word) =>
   typeof word === "string" && word.length > 0 && word.length <= 256 && !/[^A-F]/.test(word);
 const MACHINE = `A machine has one 4-bit unsigned register x (an integer 0..15). A program is a finite string over A,B,C,D,E,F, executed from left to right. Each instruction costs one step:
@@ -230,13 +230,9 @@ function inspectProgram(program, target, optimalLength, canonical) {
   };
 }
 
-function sameSet(a, b) {
-  return Array.isArray(b) && b.length === a.length && new Set(b).size === b.length && a.every((x) => b.includes(x));
-}
-
 export function gradeTask(task, draft) {
   const submitted = draft !== undefined;
-  const values = plainObject(draft)
+  const values = isObject(draft)
     ? Object.fromEntries(Object.keys(task.solution).filter(field => Object.hasOwn(draft, field)).map(field => [field, draft[field]]))
     : {};
   if (task.metadata.scoringVersion === "short-v1") {
@@ -259,7 +255,7 @@ export function gradeTask(task, draft) {
     checkpoints.push({ id: `${field}-valid`, earned: d.realizesTable ? points : 0, max: points, detail: `${d.outputsMatching}/16 outputs match; scaffolding target` });
     checkpoints.push({ id: `${field}-shortest`, earned: d.minimal ? points : 0, max: points, detail: d.minimal ? "Shortest valid scaffolding program" : "Requires a valid minimum-length scaffolding program" });
   }
-  const invariantCorrect = sameSet(task.solution.oddOperations, values.oddOperations) && values.requiredAParity === task.solution.requiredAParity;
+  const invariantCorrect = sameSet(values.oddOperations, task.solution.oddOperations) && values.requiredAParity === task.solution.requiredAParity;
   checkpoints.push({ id: "permutation-invariant", earned: invariantCorrect ? 10 : 0, max: 10, detail: invariantCorrect ? "Correct instruction parity classification and necessary A-count parity" : "Requires both the complete odd-operation set and the necessary A-count parity" });
   const d = inspectProgram(values.program, task.metadata.target, task.metadata.optimalLength, task.solution.program);
   checkpoints.push({ id: "original-inputs", earned: d.alphabetValid ? 10 * Math.max(0, d.outputsMatching - 3) / 13 : 0, max: 10, detail: `${d.outputsMatching}/16 outputs match; first three matches earn no credit` });

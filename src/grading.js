@@ -1,5 +1,6 @@
 import { PROTOCOLS, protocolValue } from "./protocols.js";
 import { gradeCheckpoint } from "./checkpoint-grading.js";
+import { isObject } from "./values.js";
 
 // Only aggregate stage counts leave the evaluator; no answers or field diagnostics.
 const STAGES = ["reports", "knowledge", "coordination", "counterfactual"];
@@ -69,12 +70,10 @@ function credit([n, d], baseline, optimum) {
   return Number((gained << 52n) / room) / 2 ** 52;
 }
 export function grade(answer, submission) {
-  if (!answer || typeof answer !== "object" || Array.isArray(answer))
+  if (!isObject(answer))
     throw Error("A graded case must have an answer object");
   if (Object.hasOwn(answer, "checkpoint"))
-    return gradeCheckpoint(answer.checkpoint,
-      submission !== null && typeof submission === "object" && !Array.isArray(submission)
-        ? submission.checkpoint : submission);
+    return gradeCheckpoint(answer.checkpoint, isObject(submission) ? submission.checkpoint : submission);
   const stages = Object.fromEntries(
     STAGES.map((s) => [s, { correct: 0, total: 0, percent: 0 }]),
   );
@@ -87,8 +86,7 @@ export function grade(answer, submission) {
     // optima, which must be answered exactly.
     if (path.length === 1 && path[0] === "coordination" && expected?.table) {
       const { table, baselines, ...optima } = expected;
-      const valid =
-        actual !== null && typeof actual === "object" && !Array.isArray(actual);
+      const valid = isObject(actual);
       if (actual !== null && actual !== undefined && !valid) malformed = true;
       for (const [name, optimum] of Object.entries(optima)) {
         if (!Object.hasOwn(PROTOCOLS, name))

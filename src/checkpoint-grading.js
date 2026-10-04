@@ -2,6 +2,7 @@ import { gradeTask as coordination } from "./checkpoint-coordination.js";
 import { gradeTask as diagnosis } from "./checkpoint-diagnosis.js";
 import { gradeTask as synthesis } from "./checkpoint-synthesis.js";
 import { gradeTask as knowledge } from "./checkpoint-knowledge.js";
+import { isObject } from "./values.js";
 
 const GRADERS = {
   "coordination-three-mode": coordination,
@@ -9,14 +10,13 @@ const GRADERS = {
   "reversible-synthesis": synthesis,
   "private-knowledge": knowledge,
 };
-const object = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 function submissionShape(expected, actual, flags) {
   if (actual == null) { flags.missing = true; return; }
   if (Array.isArray(expected)) {
     // Witness and set arrays are atomic fields; any valid alternative is allowed.
     if (!Array.isArray(actual)) flags.malformed = true;
-  } else if (object(expected)) {
-    if (!object(actual)) { flags.malformed = true; return; }
+  } else if (isObject(expected)) {
+    if (!isObject(actual)) { flags.malformed = true; return; }
     for (const [field, value] of Object.entries(expected))
       submissionShape(value, Object.hasOwn(actual, field) ? actual[field] : undefined, flags);
   } else if (typeof actual !== typeof expected || typeof expected === "number" && !Number.isSafeInteger(actual))
@@ -27,7 +27,7 @@ function submissionShape(expected, actual, flags) {
  * Only earned points leave here; oracle values and witness diagnostics stay private.
  */
 export function gradeCheckpoint(key, draft) {
-  if (!object(key) || key.version !== 1 || !Object.hasOwn(GRADERS, key.family) || !object(key.task))
+  if (!isObject(key) || key.version !== 1 || !Object.hasOwn(GRADERS, key.family) || !isObject(key.task))
     throw Error("Unknown checkpoint answer format");
   const result = GRADERS[key.family](key.task, draft);
   const checkpoints = result.checkpoints.map(({ id, earned, max }) => ({ id, earned, max }));

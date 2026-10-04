@@ -1,9 +1,9 @@
 import { randomSource } from "./random.js";
+import { isObject, sameSet } from "./values.js";
 
 const HYPOTHESES = 10;
 const TESTS = 11;
 const SUFFIXES = ["Clean", "Spent", "Legal", "Cost", "FirstTests"];
-const plainObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const popcount = (bits) => {
   let count = 0;
   for (; bits; bits &= bits - 1) count++;
@@ -207,14 +207,9 @@ Scoring is predeclared and additive: each case's Clean, Spent, and Legal sets ea
     answer: { checkpoint: { version: 1, family: task.family, task } } };
 }
 
-function sameSet(actual, expected) {
-  return Array.isArray(actual) && actual.length === expected.length
-    && new Set(actual).size === actual.length && Array.from(actual).every((value) => expected.includes(value));
-}
-
 /** Offline only: no correctness diagnostics are returned to an active solver. */
 export function gradeTask(task, draft) {
-  const supplied = plainObject(draft) ? draft : {};
+  const supplied = isObject(draft) ? draft : {};
   const checkpoints = Object.entries(task.metadata.weights).map(([id, max]) => {
     const expected = task.answer[id], actual = supplied[id];
     const correct = Object.hasOwn(supplied, id) && (Array.isArray(expected)

@@ -1,8 +1,7 @@
 import { randomSource } from './random.js';
+import { fraction as rat } from './coordination.js';
+import { isObject } from './values.js';
 
-const object = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
-const gcd = (a, b) => { a = a < 0n ? -a : a; b = b < 0n ? -b : b; while (b) [a, b] = [b, a % b]; return a; };
-const rat = (n, d = 1n) => { if (!d) throw new Error('Zero denominator'); if (d < 0n) [n, d] = [-n, -d]; const g = gcd(n, d); return [n / g, d / g]; };
 const add = (a, b) => rat(a[0] * b[1] + b[0] * a[1], a[1] * b[1]);
 const sub = (a, b) => rat(a[0] * b[1] - b[0] * a[1], a[1] * b[1]);
 const mul = (a, b) => rat(a[0] * b[0], a[1] * b[1]);
@@ -260,10 +259,10 @@ function proportion(numerator, denominator) {
 
 export function gradeTask(task, draft) {
   const ref = reference(task), submitted = draft !== undefined;
-  const ignoredKeys = object(draft) ? Object.keys(draft).filter((key) => !Object.hasOwn(response, key)) : [];
+  const ignoredKeys = isObject(draft) ? Object.keys(draft).filter((key) => !Object.hasOwn(response, key)) : [];
   // Extra notes are unscored. Only supported own properties can supply answers;
   // inherited fields and metadata must never become checkpoint evidence.
-  const d = object(draft) ? Object.fromEntries(Object.keys(response)
+  const d = isObject(draft) ? Object.fromEntries(Object.keys(response)
     .filter((key) => Object.hasOwn(draft, key)).map((key) => [key, draft[key]])) : {};
   const scores = scorePolicy(ref.rows, d.policy), robust = scores ? Math.min(...scores) : 0;
   const useful = Boolean(scores && responsive(d.policy) && robust > 0);

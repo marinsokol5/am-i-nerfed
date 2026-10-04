@@ -14,6 +14,7 @@ import { active, privateDirectory, readJSON, writeJSON } from "./storage.js";
 import { grade } from "./grading.js";
 import { durationSeconds as validateDuration } from "./duration.js";
 import { renameRunFields } from "./output.js";
+import { isObject } from "./values.js";
 
 export const PROTOCOL_VERSION = 1;
 export const appVersion = () =>
@@ -431,8 +432,6 @@ export function destroyHistory(root) {
   return { deleted };
 }
 
-const isObject = (value) =>
-  value !== null && typeof value === "object" && !Array.isArray(value);
 export function mergeDraft(previous, patch) {
   if (!isObject(patch)) return patch;
   const old = isObject(previous) ? previous : {};
