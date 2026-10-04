@@ -98,14 +98,16 @@ const replyText = (replies) =>
         `${i + 1}. ${AGENTS[s]} answers the Boolean question ${render(p)}; only ${AGENTS[l]} hears ${AGENTS[s]}'s reply.`,
     )
     .join("\n");
+// A formula whose operator nesting is drawn from [low, high].
+const nested = (r, [low, high]) => formula(r, low + r.integer(high - low + 1));
 // Distinct, world-dependent questions; a question true or false in every
 // world is answerable without following the protocol.
-function pickQuestions(r, count, stages, maxDepth, truthAt) {
+function pickQuestions(r, count, stages, depths, truthAt) {
   const questions = [],
     seen = new Set();
   for (let tries = 0; questions.length < count && tries < 400; tries++) {
     const stage = r.choose(stages),
-      p = formula(r, 1 + r.integer(maxDepth));
+      p = nested(r, depths);
     const values = truthAt(p, stage),
       key = JSON.stringify(values);
     if (!varies(values) || seen.has(key)) continue;
@@ -128,7 +130,7 @@ function easy(r) {
     const views = [0, 1, 2].map((a) => worlds.map((w) => [`own=${w.initial[a]}`]));
     const run = m.play(views, replies);
     if (!run.values.every(varies)) continue;
-    const questions = pickQuestions(r, 6, [1, 2], 2, (p, s) =>
+    const questions = pickQuestions(r, 6, [1, 2], [1, 2], (p, s) =>
       m.truth(p, run.stages[s]),
     );
     if (!questions) continue;
@@ -198,13 +200,18 @@ function normalRun(table, replies, variant = "main") {
   );
   return { worlds, m, run: m.play(views, replies, variant === "public_reports") };
 }
-function normal(r) {
+// Nesting depths of the questions and of final-stage counterfactuals.
+const DEPTHS = {
+  normal: { questions: [1, 3], counterfactuals: [1, 2] },
+  deep: { questions: [2, 4], counterfactuals: [2, 3] },
+};
+function normal(r, depths) {
   for (let attempt = 0; attempt < 500; attempt++) {
     const table = factTable(r),
       replies = pickReplies(r);
     const { worlds, m, run } = normalRun(table, replies);
     if (!run.values.every(varies)) continue;
-    const questions = pickQuestions(r, 8, [0, 1, 2], 3, (p, s) =>
+    const questions = pickQuestions(r, 8, [0, 1, 2], depths.questions, (p, s) =>
       m.truth(p, run.stages[s]),
     );
     if (!questions) continue;
@@ -214,7 +221,7 @@ function normal(r) {
       const alt = normalRun(table, replies, variant);
       for (let tries = 0; tries < 100; tries++) {
         const kind = r.integer(3);
-        const p = kind < 2 ? null : formula(r, 1 + r.integer(2));
+        const p = kind < 2 ? null : nested(r, depths.counterfactuals);
         const values = p ? alt.m.truth(p, alt.run.stages[2]) : alt.run.values[kind];
         if (varies(values)) return { variant, kind, p, alt, values };
       }
@@ -271,12 +278,13 @@ ${counterfactuals
   throw Error("No balanced normal case");
 }
 
+// Deep is the normal protocol with more deeply nested questions.
 export function generateCompact(seed, difficulty) {
-  if (!["easy", "normal"].includes(difficulty))
-    throw Error("Compact difficulty must be easy or normal");
-  const { prompt, answer } = (difficulty === "easy" ? easy : normal)(
-    randomSource(seed),
-  );
+  if (!["easy", "normal", "deep"].includes(difficulty))
+    throw Error("Compact difficulty must be easy, normal or deep");
+  const r = randomSource(seed);
+  const { prompt, answer } =
+    difficulty === "easy" ? easy(r) : normal(r, DEPTHS[difficulty]);
   return {
     generatorVersion: 2,
     difficulty,

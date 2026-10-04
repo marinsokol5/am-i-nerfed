@@ -1,12 +1,62 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  coordination,
   flatten,
   generateTaskBank,
   nest,
   tracking,
 } from "../src/task-bank.js";
 import { grade } from "../src/grading.js";
+import { optimalProtocols } from "./protocol-oracle.js";
+
+// Coordination keys store each case's optimum and trivial baseline beside the
+// table; both must match independent enumeration, with room between them.
+function checkCoordinationKey(task) {
+  const { table, baselines, ...optima } = task.answer.coordination;
+  const reference = optimalProtocols(table);
+  for (const [name, optimum] of Object.entries(optima)) {
+    assert.equal(optimum, reference.values[name], name);
+    assert.equal(baselines[name], reference.baselines[name], name);
+    const [o, od] = optimum.split("/").map(Number),
+      [b, bd] = baselines[name].split("/").map(Number);
+    assert.ok(o * bd > b * od, `${name}: ${optimum} vs ${baselines[name]}`);
+  }
+  return reference;
+}
+// A full-credit flat submission; independently found optimal protocols
+// answer coordination.
+function perfect(task) {
+  if (task.family !== "coordination") return flatten(task.answer);
+  const { protocols } = checkCoordinationKey(task);
+  return Object.fromEntries(
+    Object.keys(task.response).map((name) => [name, protocols[name]]),
+  );
+}
+// One agent dispatches on every symbol whatever it hears; the others never do.
+function trivial(agent, symbols) {
+  const rule = (who) => (who === agent ? "1" : "0").repeat(symbols),
+    heard = (who, keys) =>
+      Object.fromEntries(keys.map((key) => [key, rule(who)]));
+  const simultaneous = { A: rule("A"), B: rule("B"), C: rule("C") },
+    message = ["if_message_0", "if_message_1"];
+  return {
+    base: simultaneous,
+    mode_1: simultaneous,
+    mode_2: simultaneous,
+    binding: {
+      A: rule("A"),
+      B: heard("B", ["if_A_waits", "if_A_dispatches"]),
+      C: heard("C", ["if_A_waits", "if_A_dispatches"]),
+    },
+    broadcast: {
+      message: rule(null),
+      A: heard("A", message),
+      B: heard("B", message),
+      C: heard("C", message),
+    },
+  };
+}
 
 test("private banks deterministically contain five distinct tasks at each level", () => {
   const a = generateTaskBank("synthetic-bank-a"),
@@ -18,24 +68,68 @@ test("private banks deterministically contain five distinct tasks at each level"
   for (const level of ["easy", "medium", "hard"])
     assert.deepEqual(
       a.tasks.filter((t) => t.difficulty === level).map((t) => t.family),
-      ["hats", "cards", "knowledge", "tracking", "coordination"],
+      level === "hard"
+        ? ["hats", "hats-xl", "knowledge", "tracking-xl", "coordination"]
+        : ["hats", "cards", "knowledge", "tracking", "coordination"],
     );
   for (const task of a.tasks) {
-    assert.equal(grade(task.answer, task.answer).percent, 100);
+    assert.equal(
+      grade(task.answer, nest(task.answer, perfect(task))).percent,
+      100,
+      task.id,
+    );
     assert.equal(grade(task.answer, null).percent, 0);
   }
 });
+test("every coordination case has room above its trivial baseline, where trivial protocols earn nothing", () => {
+  for (const level of [0, 1, 2])
+    for (let i = 0; i < 6; i++) {
+      const task = coordination(`synthetic-room-${level}-${i}`, level),
+        reference = checkCoordinationKey(task);
+      const { symbols } = task.answer.coordination.table,
+        cases = Object.keys(task.response);
+      const credit = (submission) =>
+        grade(task.answer, { coordination: submission }).stages.coordination
+          .correct;
+      for (const agent of "ABC")
+        assert.equal(credit(trivial(agent, symbols)), 0, agent);
+      if (cases.includes("mixed")) {
+        for (const first of "ABC")
+          for (const second of "ABC")
+            for (const p of ["0", "1/3", "1/2", "2/3", "1"])
+              assert.equal(
+                credit({
+                  mixed: {
+                    p,
+                    first: trivial(first, symbols).base,
+                    second: trivial(second, symbols).base,
+                  },
+                }),
+                0,
+              );
+        // The best trivial mixture sits exactly at the mixed baseline.
+        assert.equal(credit({ mixed: reference.trivialMixture }), 0);
+      }
+      assert.equal(credit(reference.protocols), cases.length);
+      assert.match(task.prompt, /\(v - baseline\) \/ \(optimum - baseline\)/);
+    }
+});
 test("hat answers are independently determined from the public transcript, including changed order", () => {
   for (const task of generateTaskBank("synthetic-public-hats").tasks.filter(
-    (t) => t.family === "hats",
+    (t) => t.family === "hats" || t.family === "hats-xl",
   )) {
     const prompt = task.prompt,
       n = Number(/(\d) people \(/.exec(prompt)[1]);
     const counts = [
       .../wear exactly (.*?) hats/
         .exec(prompt)[1]
-        .matchAll(/(\d) (red|blue|white|green)/g),
+        .matchAll(/(\d) (red|blue|white|green|black)/g),
     ];
+    if (task.family === "hats-xl")
+      assert.deepEqual(
+        counts.map((m) => Number(m[1])),
+        [3, 2, 2, 1],
+      );
     const pool = counts.flatMap((m) => Array(Number(m[1])).fill(m[2]));
     const worlds = [];
     function permute(prefix, remaining) {
@@ -55,7 +149,7 @@ test("hat answers are independently determined from the public transcript, inclu
     ].map((m) => m[2].split(", ").map((x) => x.charCodeAt(0) - 65));
     const said = [
       ...prompt.matchAll(
-        /^Round (\d), ([A-H]): (unknown|red|blue|white|green)$/gm,
+        /^Round (\d), ([A-H]): (unknown|red|blue|white|green|black)$/gm,
       ),
     ];
     const utterance = (w, possible, s) => {
@@ -83,7 +177,7 @@ test("hat answers are independently determined from the public transcript, inclu
     const silent = vis
       .map((_, i) => String.fromCharCode(65 + i))
       .filter((who) => !said.some((m) => m[2] === who && m[3] !== "unknown"));
-    assert.ok(asked.length > 0);
+    assert.ok(asked.length >= (task.family === "hats-xl" ? 2 : 1));
     assert.deepEqual(asked, silent);
     assert.ok(neverNamed.every((who) => asked.includes(who)));
     assert.deepEqual(
@@ -124,10 +218,17 @@ test("hat answers are independently determined from the public transcript, inclu
   }
 });
 test("tracking keys match a forward replay of every observer subset", () => {
-  for (let level = 0; level < 3; level++) {
+  // Level 3 is tracking-xl: seven people, beliefs nested four deep.
+  for (let level = 0; level < 4; level++) {
     const task = tracking("synthetic-forward-" + level, level),
       { initial, events, queries } = task.oracle;
     const people = [...new Set(events.flatMap((e) => e.audience))];
+    assert.equal(people.length, 4 + level);
+    assert.equal(events.length, [18, 40, 75, 120][level]);
+    assert.deepEqual(
+      [...new Set(queries.map((q) => q.chain.length))],
+      Array.from({ length: 2 + level }, (_, depth) => depth),
+    );
     const beliefs = new Map();
     let actual = { ...initial };
     for (let mask = 1; mask < 1 << people.length; mask++)
@@ -178,20 +279,6 @@ test("card dialogues independently reduce the public list to the keyed card and 
         if (text === "I know which card it is.") return knows(i, w, before);
         if (text === "I do not know which card it is.")
           return !knows(i, w, before);
-        const nested =
-          /^I know that (Ann|Bob|Cid) does not know whether (Ann|Bob|Cid) knows which card it is\.$/.exec(
-            text,
-          );
-        if (nested)
-          return cell(i, w, before).every(
-            (x) =>
-              !knowsWhether(
-                people.indexOf(nested[1]),
-                people.indexOf(nested[2]),
-                x,
-                before,
-              ),
-          );
         const whether =
           /^I do not know whether (Ann|Bob|Cid) knows which card it is\.$/.exec(
             text,
@@ -227,7 +314,7 @@ test("every task presents a flat typed response shape that grades through nest",
       ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, keys(v)]))
       : true;
   for (const task of generateTaskBank("synthetic-response-shapes").tasks) {
-    const flat = flatten(task.answer);
+    const flat = perfect(task);
     assert.deepEqual(keys(task.response), keys(flat), task.id);
     for (const type of leaves(task.response))
       assert.ok(primitives.has(type) || Object.hasOwn(task.types, type), task.id);
@@ -243,6 +330,12 @@ test("every task presents a flat typed response shape that grades through nest",
               task.id,
             );
     check(task.response, flat);
+    if (task.family === "coordination")
+      assert.match(
+        task.types.Rule,
+        RegExp(`^string of ${{ easy: 2, medium: 3, hard: 4 }[task.difficulty]} digits`),
+        task.id,
+      );
     assert.equal(grade(task.answer, nest(task.answer, flat)).percent, 100, task.id);
     assert.doesNotMatch(task.prompt, /Am I nerfed|null|Reason yourself/, task.id);
   }
@@ -256,5 +349,11 @@ test("hard knowledge scenario B differs from scenario A in at least half its ans
     const { scenarioA: a, scenarioB: b } = task.answer.knowledge;
     const keys = Object.keys(a);
     assert.ok(2 * keys.filter((k) => a[k] !== b[k]).length >= keys.length, `seed ${i}`);
+    // Both scenarios ask questions nested two to four deep.
+    const depths = [
+      ...task.prompt.matchAll(/^- q\d+: (?:physical|after reply 1|final): (.+)\.$/gm),
+    ].map(([, formula]) => formula.match(/[KW]_[ABC]\(/g).length);
+    assert.equal(depths.length, 16);
+    assert.ok(depths.every((depth) => depth >= 2 && depth <= 4), `seed ${i}`);
   }
 });

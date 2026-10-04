@@ -1,3 +1,5 @@
+import { PROTOCOLS, protocolValue } from "./protocols.js";
+
 // Only aggregate stage counts leave the evaluator; no answers or field diagnostics.
 const STAGES = ["reports", "knowledge", "coordination", "counterfactual"];
 function rational(value) {
@@ -20,6 +22,51 @@ function rational(value) {
   else d = 10n ** BigInt(-exponent);
   return [n, d];
 }
+// A submitted protocol mirrors its case's shape: a null leaf leaves it
+// partial, a wrong type or rule length makes it malformed.
+function protocol(shape, value, symbols, flags) {
+  if (value === null || value === undefined) {
+    flags.missing = true;
+    return null;
+  }
+  if (shape === "Rule") {
+    if (
+      typeof value === "string" &&
+      new RegExp(`^[01]{${symbols}}$`).test(value)
+    )
+      return value;
+  } else if (shape === "Probability") {
+    let [n, d] = rational(value) ?? [-1n, 1n];
+    if (d < 0n) [n, d] = [-n, -d];
+    if (n >= 0n && n <= d) return [n, d];
+  } else if (typeof value === "object" && !Array.isArray(value))
+    return Object.fromEntries(
+      Object.entries(shape).map(([key, inner]) => [
+        key,
+        protocol(
+          inner,
+          Object.hasOwn(value, key) ? value[key] : undefined,
+          symbols,
+          flags,
+        ),
+      ]),
+    );
+  flags.malformed = true;
+  return null;
+}
+// The share of the gap from the trivial baseline to the optimum that a
+// protocol closes, clamped to [0,1] and floored to 52 bits so a near miss
+// never rounds up to full credit. Reaching the optimum always earns 1.
+function credit([n, d], baseline, optimum) {
+  const [b, bd] = rational(baseline),
+    [o, od] = rational(optimum);
+  // (n/d - b/bd) / (o/od - b/bd), with every denominator positive.
+  const gained = (n * bd - b * d) * od,
+    room = (o * bd - b * od) * d;
+  if (gained >= room) return 1;
+  if (gained <= 0n) return 0;
+  return Number((gained << 52n) / room) / 2 ** 52;
+}
 export function grade(answer, submission) {
   if (!answer || typeof answer !== "object" || Array.isArray(answer))
     throw Error("A graded case must have an answer object");
@@ -29,6 +76,37 @@ export function grade(answer, submission) {
   let malformed = false,
     missing = 0;
   function visit(expected, actual, path) {
+    // A key that stores its table takes protocols as coordination answers:
+    // each case earns the share of the gap from its trivial baseline to its
+    // optimum that the protocol's value closes. Older keys hold only the
+    // optima, which must be answered exactly.
+    if (path.length === 1 && path[0] === "coordination" && expected?.table) {
+      const { table, baselines, ...optima } = expected;
+      const valid =
+        actual !== null && typeof actual === "object" && !Array.isArray(actual);
+      if (actual !== null && actual !== undefined && !valid) malformed = true;
+      for (const [name, optimum] of Object.entries(optima)) {
+        if (!Object.hasOwn(PROTOCOLS, name))
+          throw Error("Unknown coordination case");
+        stages.coordination.total++;
+        const flags = {},
+          submitted = protocol(
+            PROTOCOLS[name],
+            valid && Object.hasOwn(actual, name) ? actual[name] : undefined,
+            table.symbols,
+            flags,
+          );
+        if (flags.malformed) malformed = true;
+        if (flags.missing) missing++;
+        if (!flags.malformed && !flags.missing)
+          stages.coordination.correct += credit(
+            protocolValue(table, name, submitted),
+            baselines[name],
+            optimum,
+          );
+      }
+      return;
+    }
     if (expected !== null && typeof expected === "object") {
       const valid =
         actual !== null &&

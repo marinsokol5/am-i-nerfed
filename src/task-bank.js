@@ -1,15 +1,15 @@
 import { createHash, createHmac } from "node:crypto";
 import { randomSource } from "./random.js";
 import { generateCompact } from "./compact.js";
-import { hardCoordination } from "./hard-coordination.js";
-import { solveScores } from "./coordination.js";
+import { coordinationTask } from "./coordination-task.js";
 
 // Version 2 presents the same puzzles as version 1 with typed response shapes.
 // Version 3 regenerates hard knowledge scenario B when it repeats scenario A.
 // Version 4 randomizes knowledge protocol structure, not only bit labels.
 // Version 5 asks only hats nobody names and caps what copying predicts.
 // Version 6 caps the most common alternative reply at half.
-export const TASK_BANK_VERSION = 6;
+// Version 7 scores coordination protocols and enlarges the hard tier.
+export const TASK_BANK_VERSION = 7;
 export const LEVELS = ["easy", "medium", "hard"];
 export const hash = (value) =>
   createHash("sha256")
@@ -26,7 +26,6 @@ const shape = (value, type) =>
   value && typeof value === "object"
     ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, shape(v, type)]))
     : type;
-const FRACTION = { Fraction: 'exact rational string, e.g. "3/2"' };
 // Answer keys group fields by scoring stage; solvers see one flat object.
 export function flatten(answer) {
   const flat = {};
@@ -79,43 +78,87 @@ export function hatWorlds(counts) {
   visit([]);
   return out;
 }
+// Each turn groups the remaining worlds by what the speaker sees, with a
+// bitmask of the speaker's own colors per group. View keys depend only on the
+// speaker and whom they see, so they are cached per world list: hats-xl
+// replays thousands of eight-person runs.
+const hatCache = new WeakMap();
+let hatTurn = 0;
 export function hatRun(worlds, visibility, order, actual) {
-  let remaining = worlds;
-  const replies = [];
-  for (const speaker of order) {
-    const key = (w) => visibility[speaker].map((i) => w[i]).join(",");
-    const cells = new Map();
-    for (const w of remaining) {
-      const k = key(w);
-      if (!cells.has(k)) cells.set(k, new Set());
-      cells.get(k).add(w[speaker]);
-    }
-    const reply = (w) => {
-      const own = cells.get(key(w));
-      return own.size === 1 ? [...own][0] : -1;
-    };
-    const said = reply(actual);
-    replies.push(said);
-    remaining = remaining.filter((w) => reply(w) === said);
+  if (!hatCache.has(worlds)) {
+    const n = worlds[0].length,
+      radix = 1 + Math.max(...worlds[0]),
+      size = radix ** (n - 1);
+    hatCache.set(worlds, {
+      radix,
+      views: new Map(),
+      bits: Array.from({ length: n }, (_, s) =>
+        Int32Array.from(worlds, (w) => 1 << w[s]),
+      ),
+      cells: new Int32Array(size),
+      stamps: new Float64Array(size),
+    });
   }
-  return { replies, remaining };
+  const { radix, views, bits, cells, stamps } = hatCache.get(worlds);
+  const key = (seen, w) => seen.reduce((k, i) => k * radix + w[i], 0);
+  const replies = [];
+  let remaining = Int32Array.from(worlds.keys()),
+    count = worlds.length;
+  for (const speaker of order) {
+    const seen = visibility[speaker],
+      view = `${speaker}:${seen}`;
+    if (!views.has(view))
+      views.set(view, Int32Array.from(worlds, (w) => key(seen, w)));
+    const own = views.get(view),
+      bit = bits[speaker];
+    // A stamp clears each group on its first use this turn.
+    hatTurn++;
+    for (let t = 0; t < count; t++) {
+      const k = own[remaining[t]];
+      if (stamps[k] !== hatTurn) {
+        stamps[k] = hatTurn;
+        cells[k] = 0;
+      }
+      cells[k] |= bit[remaining[t]];
+    }
+    // One possible own color is named, otherwise unknown; worlds where the
+    // speaker would have replied differently drop out.
+    const mask = cells[key(seen, actual)],
+      certain = (mask & (mask - 1)) === 0;
+    replies.push(certain ? actual[speaker] : -1);
+    let kept = 0;
+    for (let t = 0; t < count; t++) {
+      const cell = cells[own[remaining[t]]];
+      if (certain ? cell === mask : (cell & (cell - 1)) !== 0)
+        remaining[kept++] = remaining[t];
+    }
+    count = kept;
+  }
+  return {
+    replies,
+    remaining: Array.from(remaining.subarray(0, count), (i) => worlds[i]),
+  };
 }
+// Level 3 is hats-xl, ported from lab/hardhunt hatsXL: eight people, at
+// least two hidden hats, and no informative-transcript checks.
 function hats(seed, level) {
   const r = randomSource(seed),
     counts = [
       [2, 2, 1],
       [2, 2, 1, 1],
       [2, 2, 2, 1],
-    ][level];
+      [3, 2, 2, 1],
+    ][level],
+    xl = level === 3;
   const worlds = hatWorlds([...counts]),
     n = worlds[0].length,
     base = [...Array(n).keys()];
   const rounds = level === 0 ? 1 : 2,
     order = Array.from({ length: rounds }, () => base).flat();
   const colors = r
-    .shuffle(["red", "blue", "white", "green"])
+    .shuffle(["red", "blue", "white", "green", ...(xl ? ["black"] : [])])
     .slice(0, counts.length);
-  for (let trial = 0; trial < 60000; trial++) {
+  for (let trial = 0; trial < (xl ? 200000 : 60000); trial++) {
     const visibility = base.map((i) =>
       r
         .shuffle(base.filter((j) => i !== j))
@@ -131,8 +174,8 @@ function hats(seed, level) {
       first.replies.flatMap((a, i) => (a === -1 ? [] : [order[i]])),
     );
     const hidden = base.filter((i) => !named.has(i));
-    if (!hidden.length) continue;
-    const alt = level === 2 ? r.shuffle(base) : [...base].reverse();
+    if (hidden.length < (xl ? 2 : 1)) continue;
+    const alt = level >= 2 ? r.shuffle(base) : [...base].reverse();
     if (alt.every((v, i) => v === base[i])) continue;
     const second = hatRun(
       worlds,
@@ -152,22 +195,24 @@ function hats(seed, level) {
     for (const a of second.replies)
       replyCounts.set(a, (replyCounts.get(a) ?? 0) + 1);
     if (2 * Math.max(...replyCounts.values()) > second.replies.length) continue;
-    const initialKnowledge = base.map(
-      (s) => hatRun(worlds, visibility, [s], actual).replies[0],
-    );
-    if (
-      !first.replies.some(
-        (a, i) => a !== -1 && initialKnowledge[order[i]] === -1,
+    if (!xl) {
+      const initialKnowledge = base.map(
+        (s) => hatRun(worlds, visibility, [s], actual).replies[0],
+      );
+      if (
+        !first.replies.some(
+          (a, i) => a !== -1 && initialKnowledge[order[i]] === -1,
+        )
       )
-    )
-      continue;
-    if (
-      rounds === 2 &&
-      !first.replies
-        .slice(n)
-        .some((a, i) => a !== -1 && first.replies[i] === -1)
-    )
-      continue;
+        continue;
+      if (
+        rounds === 2 &&
+        !first.replies
+          .slice(n)
+          .some((a, i) => a !== -1 && first.replies[i] === -1)
+      )
+        continue;
+    }
     const color = (a) => (a === -1 ? "unknown" : colors[a]);
     const answer = {
       knowledge: {
@@ -206,16 +251,12 @@ export function cardTruth(kind, i, j, w, cards) {
   if (kind === "knows_unknown") return cell(i, w).every((c) => !knows(j, c));
   if (kind === "unknown_whether")
     return new Set(cell(i, w).map((c) => knows(j, c))).size === 2;
-  const k = 3 - i - j;
-  if (kind === "nested")
-    return cell(i, w).every((c) =>
-      cardTruth("unknown_whether", j, k, c, cards),
-    );
   throw Error("Unknown card predicate");
 }
+// Easy and medium only; the hard tier has no cards.
 function cards(seed, level) {
   const r = randomSource(seed),
-    size = [10, 14, 18][level];
+    size = [10, 14][level];
   const universe = Array.from({ length: 80 }, (_, i) => [
     Math.floor(i / 20),
     Math.floor(i / 5) % 4,
@@ -242,7 +283,6 @@ function cards(seed, level) {
         "knows",
         "knows_unknown",
         ...(level ? ["unknown_whether"] : []),
-        ...(level === 2 ? ["nested"] : []),
       ])
         for (let i = 0; i < 3; i++)
           for (let j = 0; j < 3; j++) {
@@ -267,16 +307,14 @@ function cards(seed, level) {
       dialogue.push(choice);
       remaining[`after${dialogue.length}`] = current.length;
     }
-    if (current.length !== 1 || dialogue.length < 3 + Number(level === 2))
-      continue;
+    if (current.length !== 1 || dialogue.length < 3) continue;
     const speaker = ["Ann", "Bob", "Cid"];
-    const text = ({ kind, i, j }) =>
+    const text = ({ kind, j }) =>
       ({
         knows: "I know which card it is.",
         unknown: "I do not know which card it is.",
         knows_unknown: `I know that ${speaker[j]} does not know which card it is.`,
         unknown_whether: `I do not know whether ${speaker[j]} knows which card it is.`,
-        nested: `I know that ${speaker[j]} does not know whether ${speaker[3 - i - j]} knows which card it is.`,
       })[kind];
     const answer = { knowledge: { card: cardName(actual), remaining } };
     return {
@@ -290,10 +328,14 @@ function cards(seed, level) {
 }
 
 // Compact adaptation of lab/tracking.py. Explicit audience semantics make the
-// nested-belief update rule unambiguous and independently replayable.
+// nested-belief update rule unambiguous and independently replayable. Level 3
+// is tracking-xl: seven people and beliefs nested four deep.
 export function tracking(seed, level) {
   const r = randomSource(seed),
-    people = ["Mia", "Leo", "Ava", "Noah", "Zoe", "Eli"].slice(0, 4 + level);
+    people = ["Mia", "Leo", "Ava", "Noah", "Zoe", "Eli", "Ivy"].slice(
+      0,
+      4 + level,
+    );
   const objects = ["ring", "letter", "key"],
     places = ["safe", "drawer", "trunk", "toolbox"];
   const initial = Object.fromEntries(objects.map((o) => [o, r.choose(places)]));
@@ -306,7 +348,7 @@ export function tracking(seed, level) {
   for (let attempt = 0; attempt < 1000; attempt++) {
     events = [];
     actual = { ...initial };
-    for (let i = 0; i < [18, 40, 75][level]; i++) {
+    for (let i = 0; i < [18, 40, 75, 120][level]; i++) {
       const object = r.choose(objects),
         audience = r.shuffle(people).slice(0, 1 + r.integer(people.length));
       const whisper = audience.length >= 2 && r.integer(4) === 0;
@@ -378,8 +420,8 @@ function knowledge(seed, level) {
     return { prompt, answer, response: shape(flatten(answer), "boolean") };
   }
   // Scenario B must differ from A in at least half its answers, otherwise
-  // the second protocol adds little beyond the first.
-  const first = generateCompact(derive(seed, "first"), "normal");
+  // the second protocol adds little beyond the first. Both ask deeper nesting.
+  const first = generateCompact(derive(seed, "first"), "deep");
   const differing = (b) =>
     Object.entries(flatten(first.answer)).filter(
       ([key, value]) => flatten(b.answer)[key] !== value,
@@ -389,7 +431,7 @@ function knowledge(seed, level) {
     if (attempt === 200) throw Error("Could not generate distinct scenarios.");
     second = generateCompact(
       derive(seed, attempt ? `second/${attempt}` : "second"),
-      "normal",
+      "deep",
     );
     if (2 * differing(second) >= Object.keys(flatten(first.answer)).length)
       break;
@@ -406,48 +448,39 @@ function knowledge(seed, level) {
     response: shape(answer.knowledge, "boolean"),
   };
 }
-function coordination(seed, level) {
-  if (level === 2) {
-    const { prompt, answer } = hardCoordination(seed);
-    return {
-      prompt,
-      answer,
-      types: FRACTION,
-      response: shape(answer.coordination, "Fraction"),
-    };
-  }
-  const r = randomSource(seed),
-    rows = Array.from({ length: 8 }, (_, i) => [i >> 2, (i >> 1) & 1, i & 1]);
-  const targets = [0, 1].map(() => rows.map(() => r.integer(3)));
-  const cases =
-    level === 0
-      ? ["base", "mode_1", "mode_2"]
-      : ["base", "mixed", "mode_1", "mode_2", "binding", "broadcast"];
-  const answer = {
-    coordination: solveScores(
-      [0, 1, 2].map((i) => rows.map((w) => w[i])),
-      targets,
-      { cases },
-    ),
-  };
-  return {
-    prompt:
-      `Three agents A, B, C see only their own bit a, b, c. All eight rows below are possible in each of two hidden modes. The table, observations and rules are common knowledge. Nobody separately observes the mode, row, other bits, or qualified agent.\nabc | qualified in mode 1 | qualified in mode 2\n${rows.map((w, i) => `${w.join("")} | ${names[targets[0][i]]} | ${names[targets[1][i]]}`).join("\n")}\nEach agent dispatches (1) or waits (0). A row succeeds exactly when one agent dispatches and it is the qualified agent. A deterministic policy maps each agent's own observation to its action. Identical observations require identical actions. The SAME policy handles both modes. Let s1 and s2 count successful rows in the two modes.\nOptimize independently:\nbase: maximize min(s1,s2), simultaneous actions without messages.\nmode_1: maximize s1 alone under a base policy.\nmode_2: maximize s2 alone under a base policy.${level ? "\nmixed: a shared random draw independent of row/mode selects a complete base policy; maximize min(E[s1],E[s2]), expectation BEFORE minimum.\nbinding: A acts first; B and C observe its irrevocable action then act simultaneously using that and their own bits. All actions count. Maximize min(s1,s2).\nbroadcast: A announces one bit based on a, then everyone acts simultaneously using that message and their own bit. The message does not constrain A's action. Maximize min(s1,s2)." : ""}\nNo additional signals, observations, retries or private randomness. Return exact maxima.`,
-    answer,
-    types: FRACTION,
-    response: shape(answer.coordination, "Fraction"),
-  };
+// Coordination difficulty is the table: symbols per agent, rows, and cases.
+const CASES = ["base", "mixed", "mode_1", "mode_2", "binding", "broadcast"];
+const COORDINATION = [
+  { symbols: 2, rows: 6, cases: ["base", "mode_1", "mode_2"] },
+  { symbols: 3, rows: 18, cases: CASES },
+  { symbols: 4, rows: 26, cases: CASES },
+];
+export function coordination(seed, level) {
+  return coordinationTask(seed, COORDINATION[level]);
 }
-export function generateTaskBank(seed) {
-  const families = [
+// Each tier lists its families in task order. Hard trades cards for larger
+// hat and tracking puzzles.
+const FAMILIES = [
+  ["hats", hats],
+  ["cards", cards],
+  ["knowledge", knowledge],
+  ["tracking", tracking],
+  ["coordination", coordination],
+];
+const TIERS = [
+  FAMILIES,
+  FAMILIES,
+  [
     ["hats", hats],
-    ["cards", cards],
+    ["hats-xl", (seed) => hats(seed, 3)],
     ["knowledge", knowledge],
-    ["tracking", tracking],
+    ["tracking-xl", (seed) => tracking(seed, 3)],
     ["coordination", coordination],
-  ];
+  ],
+];
+export function generateTaskBank(seed) {
   const tasks = LEVELS.flatMap((difficulty, level) =>
-    families.map(([family, generate], index) => {
+    TIERS[level].map(([family, generate], index) => {
       const { prompt, answer, types = {}, response } = generate(
         derive(seed, `${difficulty}/${family}`),
         level,

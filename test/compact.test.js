@@ -145,9 +145,24 @@ function oracle(prompt, difficulty, variant = "main") {
   return { knowledge, replies, at, worldCount: worlds.length };
 }
 
-for (const difficulty of ["easy", "normal"]) {
+// Operator nesting of questions, then of final-stage counterfactuals.
+const DEPTHS = {
+  easy: [[1, 2]],
+  normal: [
+    [1, 3],
+    [1, 2],
+  ],
+  deep: [
+    [2, 4],
+    [2, 3],
+  ],
+};
+const depth = (text) => text.match(/[KW]_[ABC]\(/g).length;
+
+for (const difficulty of ["easy", "normal", "deep"]) {
   test(`${difficulty}: public question independently determines every scored answer`, () => {
     const answerVectors = new Set();
+    const depths = DEPTHS[difficulty].map(() => []);
     for (let i = 0; i < 32; i++) {
       const generated = generateCompact(
         `synthetic-relational-${i}`,
@@ -155,14 +170,19 @@ for (const difficulty of ["easy", "normal"]) {
       );
       const reference = oracle(generated.prompt, difficulty);
       assert.equal(reference.worldCount, difficulty === "easy" ? 8 : 24);
+      for (const [, formula] of generated.prompt.matchAll(
+        /^- q\d+: (?:physical|after reply 1|final): (.+)\.$/gm,
+      ))
+        depths[0].push(depth(formula));
       const expected = { knowledge: reference.knowledge };
-      if (difficulty === "normal") {
+      if (difficulty !== "easy") {
         expected.counterfactual = {};
         for (const [, variant, question] of generated.prompt.matchAll(
           /^- (public_event|public_reports|forget_A|no_swap): .*; answer (.+)\.$/gm,
         )) {
           const alt = oracle(generated.prompt, difficulty, variant),
             reply = /^reply ([12])$/.exec(question);
+          if (!reply) depths[1].push(depth(question));
           expected.counterfactual[variant] = reply
             ? alt.replies[reply[1] - 1]
             : alt.at(2, parse(question.replace(/^final /, "")));
@@ -179,6 +199,11 @@ for (const difficulty of ["easy", "normal"]) {
       answerVectors.size >= 24,
       `Only ${answerVectors.size} distinct answer keys across 32 seeds`,
     );
+    // Nesting stays within its range and reaches both ends.
+    DEPTHS[difficulty].forEach(([low, high], i) => {
+      assert.equal(Math.min(...depths[i]), low);
+      assert.equal(Math.max(...depths[i]), high);
+    });
   });
 
   test(`${difficulty}: deterministic, compact, without an embedded answer schema`, () => {
@@ -216,13 +241,13 @@ for (const difficulty of ["easy", "normal"]) {
       Object.keys(first.answer.knowledge).length,
       difficulty === "easy" ? 8 : 10,
     );
-    if (difficulty === "normal")
+    if (difficulty !== "easy")
       assert.equal(Object.keys(first.answer.counterfactual).length, 4);
   });
 }
 
 test("compact generator rejects unsupported difficulties instead of silently changing the test", () => {
-  for (const difficulty of [undefined, "hard", "Easy", "medium", ""])
+  for (const difficulty of [undefined, "hard", "Easy", "medium", "Deep", ""])
     assert.throws(
       () => generateCompact("synthetic-invalid", difficulty),
       /difficulty/,

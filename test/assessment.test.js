@@ -19,6 +19,7 @@ import {
   annotateAssessment,
   destroyHistory,
 } from "../src/assessment.js";
+import { optimalProtocols } from "./protocol-oracle.js";
 const bank = generateTaskBank("synthetic-assessment");
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "am-i-nerfed-test-"));
@@ -124,6 +125,38 @@ test("five-task run preserves partial work, grades equally and permanently close
       assessmentAction(f.state, "finish", { runId }, () => now + 40000),
       receipt,
     );
+  } finally {
+    f.cleanup();
+  }
+});
+test("coordination drafts merge protocol by protocol and score by the value they achieve", () => {
+  const f = fixture(),
+    now = Date.now();
+  try {
+    const { runId } = startAssessment(f.state, {}, now);
+    const task = bank.tasks.find((t) => t.id === "medium-5"),
+      { protocols } = optimalProtocols(task.answer.coordination.table);
+    const answer = (patch, tick) =>
+      assessmentAction(
+        f.state,
+        "answer",
+        { runId, taskId: task.id, patch },
+        () => now + tick,
+      );
+    // Nested patches merge: B's broadcast rules arrive after the rest.
+    const { B, ...broadcast } = protocols.broadcast;
+    answer({ ...protocols, broadcast }, 1);
+    answer({ broadcast: { B } }, 2);
+    const receipt = assessmentAction(f.state, "finish", { runId }, () => now + 3);
+    const scored = receipt.result.tasks.find((t) => t.id === task.id);
+    assert.equal(scored.percent, 100);
+    assert.equal(scored.submissionStatus, "scored_json");
+    assert.deepEqual(scored.stages.coordination, {
+      correct: 6,
+      total: 6,
+      percent: 100,
+    });
+    assert.equal(receipt.result.percent, 20);
   } finally {
     f.cleanup();
   }
