@@ -6,6 +6,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { initializedState } from "./initialized-state.js";
 
 const cli = fileURLToPath(new URL("../bin/am-i-nerfed.js", import.meta.url));
 
@@ -50,7 +51,7 @@ test("doctor and version work before initialization without creating state", t =
 });
 
 test("doctor reports a ready baseline without clients, private content, or writes", t => {
-  const f = fixture(t), initialized = f.json("init");
+  const f = fixture(t), initialized = initializedState(f.state);
   const before = snapshot(f.state), raw = f.command("doctor"), result = JSON.parse(raw);
   assert.equal(result.initialized, true);
   assert.equal(result.baselineId, initialized.baselineId);
@@ -63,7 +64,7 @@ test("doctor reports a ready baseline without clients, private content, or write
 });
 
 test("doctor does not regenerate a missing task bank", t => {
-  const f = fixture(t), initialized = f.json("init");
+  const f = fixture(t), initialized = initializedState(f.state);
   const bank = path.join(f.state, "baselines", initialized.baselineId, "task-bank.json");
   fs.unlinkSync(bank);
   const before = snapshot(f.state), result = f.json("doctor");
@@ -76,7 +77,7 @@ test("doctor does not regenerate a missing task bank", t => {
 
 test("doctor reports corrupt state without echoing private file contents or repairing it", t => {
   const f = fixture(t);
-  f.json("init");
+  initializedState(f.state);
   fs.writeFileSync(path.join(f.state, "current.json"), "private-sentinel-invalid-json");
   const before = snapshot(f.state), raw = f.command("doctor"), result = JSON.parse(raw);
   assert.equal(result.initialized, false);

@@ -6,6 +6,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { formatRun, renameRunFields } from "../src/output.js";
+import { initializedState } from "./initialized-state.js";
 
 const cli = fileURLToPath(new URL("../bin/am-i-nerfed.js", import.meta.url));
 const compactKeys = ["runId", "status", "difficulty", "clock", "tasks"];
@@ -23,7 +24,7 @@ function fixture(t) {
     assert.equal(result.status, 0, result.stderr);
     return JSON.parse(result.stdout);
   };
-  const initialized = json("init");
+  const initialized = initializedState(home);
   const recordPath = id => path.join(home, "baselines", initialized.baselineId, "assessments", id + ".json");
   return { root, home, bin, exec, json, initialized, recordPath };
 }

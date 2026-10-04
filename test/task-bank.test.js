@@ -11,6 +11,14 @@ import {
 import { grade } from "../src/grading.js";
 import { optimalProtocols } from "./protocol-oracle.js";
 
+// A bank takes seconds to build, so tests that need any bank share one.
+const BANK_SEED = "synthetic-bank-a";
+const banks = new Map();
+const bankFor = (seed) => {
+  if (!banks.has(seed)) banks.set(seed, generateTaskBank(seed));
+  return banks.get(seed);
+};
+
 // Coordination keys store each case's optimum and trivial baseline beside the
 // table; both must match independent enumeration, at least 3 points apart.
 function checkCoordinationKey(task) {
@@ -60,9 +68,9 @@ function trivial(agent, symbols) {
 }
 
 test("private banks deterministically contain six distinct tasks per tier", () => {
-  const a = generateTaskBank("synthetic-bank-a"),
+  const a = bankFor(BANK_SEED),
     b = generateTaskBank("synthetic-bank-b");
-  assert.deepEqual(a, generateTaskBank("synthetic-bank-a"));
+  assert.deepEqual(a, generateTaskBank(BANK_SEED));
   assert.notDeepEqual(a, b);
   assert.equal(a.tasks.length, 18);
   assert.equal(new Set(a.tasks.map((t) => t.promptHash)).size, 18);
@@ -116,7 +124,7 @@ test("every coordination case has room above its trivial baseline, where trivial
     }
 });
 test("hat answers are independently determined from the public transcript, including changed order", () => {
-  for (const task of generateTaskBank("synthetic-public-hats").tasks.filter(
+  for (const task of bankFor(BANK_SEED).tasks.filter(
     (t) => t.family === "hats" || t.family === "hats-xl",
   )) {
     const prompt = task.prompt,
@@ -254,7 +262,7 @@ test("tracking keys match a forward replay of every observer subset", () => {
 });
 
 test("card dialogues independently reduce the public list to the keyed card and counts", () => {
-  for (const task of generateTaskBank("synthetic-public-cards").tasks.filter(
+  for (const task of bankFor(BANK_SEED).tasks.filter(
     (t) => t.family === "cards",
   )) {
     const list = task.prompt
@@ -314,7 +322,7 @@ test("every task presents a flat typed response shape that grades through nest",
     value && typeof value === "object"
       ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, keys(v)]))
       : true;
-  for (const task of generateTaskBank("synthetic-response-shapes").tasks) {
+  for (const task of bankFor(BANK_SEED).tasks) {
     const flat = perfect(task);
     if (task.answer.checkpoint) {
       assert.deepEqual(Object.keys(task.response).sort(), Object.keys(flat).sort(), task.id);
