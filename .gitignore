@@ -8,3 +8,6 @@ research/
 __pycache__/
 *.py[cod]
 .DS_Store
+
+# Machine-specific skill install lock.
+skills-lock.json
