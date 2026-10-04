@@ -129,6 +129,12 @@ export function nativeCommand(agent, opts) {
     "-",
   ];
 }
+// AM_I_NERFED_CLAUDE_COMMAND / AM_I_NERFED_CODEX_COMMAND replace the client
+// executable, for example "am run claude-work"; words are split on whitespace.
+export function clientCommand(agent, source = process.env) {
+  const custom = source[`AM_I_NERFED_${agent.toUpperCase()}_COMMAND`]?.trim();
+  return custom ? custom.split(/\s+/) : [agent];
+}
 export function cleanEnvironment(agent, source = process.env) {
   const keep = [
     "HOME",
@@ -445,7 +451,8 @@ export async function runAssessment(options) {
   if (!["native", "none"].includes(systemPrompt))
     throw Error("Invalid system prompt mode");
   const seconds = durationSeconds(options.seconds);
-  const version = spawnSync(agent, ["--version"], {
+  const [executable, ...prefix] = clientCommand(agent);
+  const version = spawnSync(executable, [...prefix, "--version"], {
     encoding: "utf8",
     timeout: 10000,
     env: cleanEnvironment(agent),
@@ -520,8 +527,8 @@ export async function runAssessment(options) {
       }
     };
     execution = await supervise(
-      agent,
-      nativeCommand(agent, { ...settings, work, state, instructionsFile }),
+      executable,
+      [...prefix, ...nativeCommand(agent, { ...settings, work, state, instructionsFile })],
       { cwd: work, env: childEnv, prompt, deadline, isFinished },
     );
     execution.clientVersion = version.stdout.trim();

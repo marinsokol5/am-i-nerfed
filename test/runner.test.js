@@ -12,6 +12,7 @@ import {
   permittedCommand,
   runAssessment,
   MINIMAL_SYSTEM_PROMPT,
+  clientCommand,
 } from "../src/runner.js";
 import { listHistory } from "../src/assessment.js";
 import { codexEnvironment, codexEvidence } from "../src/codex-context.js";
@@ -281,6 +282,13 @@ test("packaged runner and transport complete a real five-task lifecycle using a 
     assert.equal(result.execution.failure, null);
     assert.equal(result.systemPrompt, "native");
     assert.equal(fs.existsSync(path.join(state, ".lock")), false);
+    // The second run launches through a wrapper that requires an account argument.
+    fs.writeFileSync(
+      path.join(bin, "launcher"),
+      `#!/bin/sh\n[ "$1" = "acct-x" ] || exit 9\nshift\nexec "${path.join(bin, "codex")}" "$@"\n`,
+      { mode: 0o700 },
+    );
+    process.env.AM_I_NERFED_CODEX_COMMAND = `${path.join(bin, "launcher")} acct-x`;
     const bare = await runAssessment({
       agent: "codex",
       model: "fake-model",
@@ -297,10 +305,20 @@ test("packaged runner and transport complete a real five-task lifecycle using a 
     );
   } finally {
     process.env.PATH = oldPath;
+    delete process.env.AM_I_NERFED_CODEX_COMMAND;
     if (oldState === undefined) delete process.env.AM_I_NERFED_HOME;
     else process.env.AM_I_NERFED_HOME = oldState;
     if (oldCodexHome === undefined) delete process.env.CODEX_HOME;
     else process.env.CODEX_HOME = oldCodexHome;
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("client command overrides split into executable and prefix arguments", () => {
+  assert.deepEqual(clientCommand("claude", {}), ["claude"]);
+  assert.deepEqual(clientCommand("codex", { AM_I_NERFED_CODEX_COMMAND: "  " }), ["codex"]);
+  assert.deepEqual(
+    clientCommand("claude", { AM_I_NERFED_CLAUDE_COMMAND: " am  run claude-ms18 " }),
+    ["am", "run", "claude-ms18"],
+  );
 });

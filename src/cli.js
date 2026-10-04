@@ -19,7 +19,7 @@ import {
   listHistory,
   destroyHistory,
 } from "./assessment.js";
-import { runAssessment } from "./runner.js";
+import { clientCommand, runAssessment } from "./runner.js";
 import { installSkill } from "./install.js";
 import {
   formatRun,
@@ -62,6 +62,8 @@ enforce the answer deadline but cannot stop an independently hosted agent.
 Difficulty and reasoning effort are different settings. Unknown metadata
 should be omitted. Commands return compact JSON; --verbose adds run metadata.
 Transport commands return JSON. history has --json for scripts.
+AM_I_NERFED_CLAUDE_COMMAND / AM_I_NERFED_CODEX_COMMAND replace the client
+command, e.g. AM_I_NERFED_CLAUDE_COMMAND="am run claude-work".
 `;
 function options(args, values = [], booleans = []) {
   const out = {};
@@ -210,7 +212,8 @@ export async function main(args = process.argv.slice(2)) {
       return;
     }
     const clients = ["codex", "claude"].map((agent) => {
-      const result = spawnSync(agent, ["--version"], {
+      const [executable, ...prefix] = clientCommand(agent);
+      const result = spawnSync(executable, [...prefix, "--version"], {
         encoding: "utf8",
         timeout: 10000,
       });
