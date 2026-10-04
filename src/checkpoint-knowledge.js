@@ -237,7 +237,7 @@ function selectCells(random, runs, actual, questions) {
       if (variant !== "main" && JSON.stringify(values) === JSON.stringify(factual)) continue;
       const duplicatesTrueEvidence = trueEvidence.some((evidence) => evidence.variant === variant
         && JSON.stringify(evidence.values) === JSON.stringify(values));
-      candidates.push({ variant, stage, agent, values, physical: run.ids(physical), factual, duplicatesTrueEvidence });
+      candidates.push({ variant, stage, agent, values, factual, duplicatesTrueEvidence });
     }
   }
   const shuffled = random.shuffle(candidates);
@@ -306,30 +306,17 @@ export function generateSingle(seed) {
   if (!selected) throw Error(`Could not generate causally filtered private knowledge task in ${MAX_GENERATION_ATTEMPTS} attempts`);
   const { factRows, replies, actual, questions, cells, runs, attempt, causalWorlds,
     causalWorlds2, causalWorlds3 } = selected;
-  const answer = {}, response = {}, weights = {}, certificates = {}, baselines = {};
-  for (const name of ["constantFalse", "constantTrue", "ignoreUpdates", "ignoreFinalReply", "factualCopy", "inverseFactual", "shallow", "shallowSigned", "atomic", "child", "physicalEvidence"])
-    baselines[name] = {};
+  const answer = {}, response = {}, weights = {}, certificates = {};
   for (const question of questions) {
-    const { id, variant, formula } = question, run = runs[variant], index = run.actualIndex(actual);
-    const certificate = evidenceFor(run, question, actual);
+    const { id, variant, formula } = question;
+    const certificate = evidenceFor(runs[variant], question, actual);
     certificates[id] = { operator: formula[0], ...certificate };
     answer[id] = certificate.value; answer[`${id}Evidence`] = certificate.evidence;
     response[id] = "boolean"; response[`${id}Evidence`] = "History[]";
     weights[id] = 4; weights[`${id}Evidence`] = 9;
-    baselines.constantFalse[id] = false; baselines.constantTrue[id] = true;
-    baselines.ignoreUpdates[id] = has(question.physical, index);
-    baselines.ignoreFinalReply[id] = has(question.beforeFinal, index);
-    baselines.factualCopy[id] = has(question.factualValues, runs.main.actualIndex(actual));
-    baselines.inverseFactual[id] = !baselines.factualCopy[id];
-    baselines.shallow[id] = has(question.shallow, index);
-    baselines.shallowSigned[id] = has(question.shallowSigned, index);
-    baselines.atomic[id] = has(question.atomic, index);
-    baselines.child[id] = has(question.child, index);
-    baselines.physicalEvidence[`${id}Evidence`] = run.ids(run.stages[0][formula[1]][index]);
   }
   for (const cell of cells) {
     answer[cell.id] = cell.values; response[cell.id] = "History[]"; weights[cell.id] = 11;
-    baselines.physicalEvidence[cell.id] = cell.physical;
   }
   const publicData = { factRows, replies, actual,
     questions: questions.map(({ id, variant, stage, formula }) => ({ id, variant, stage, formula })),
@@ -367,7 +354,7 @@ All arrays must contain distinct valid history IDs; order does not matter. Scori
   const types = { History: "a string abcd:e, with initial bits abcd in 0000..1111 and event e in 0..3, e.g. 0110:2",
     "History[]": "array of distinct History strings, in any order" };
   const task = { family: "private-knowledge", response, types, answer, solution: structuredClone(answer),
-    metadata: { public: structuredClone(publicData), weights, certificates, baselines, generationAttempts: attempt,
+    metadata: { public: structuredClone(publicData), weights, certificates, generationAttempts: attempt,
       nAgents: 4, worldCount: 64, generationMetrics,
       acceptedProtocolFilterCounts: Object.fromEntries(Object.entries(runs).map(([variant, run]) => [variant, run.filterCounts])),
       quality: { histories: 64, agents: 4, replies: 3, reply2CausalWorlds: bitCount(causalWorlds2), reply2CausalAtActual: true,
@@ -449,8 +436,6 @@ export function generate(seed) {
   const answer = Object.fromEntries(Object.entries(scenarios).map(([id, task]) => [id, task.answer]));
   const weights = Object.fromEntries(Object.entries(scenarios).flatMap(([scenario, task]) =>
     Object.entries(task.metadata.weights).map(([id, points]) => [`${scenario}.${id}`, points / 2])));
-  const baselines = Object.fromEntries(Object.keys(scenarios.scenarioA.metadata.baselines).map((name) => [name,
-    Object.fromEntries(Object.entries(scenarios).map(([id, task]) => [id, task.metadata.baselines[name]]))]));
   const types = first.types;
   const prompt = `Solve TWO independent private-knowledge scenarios. The agents, histories, facts and replies reset completely between them. No observation or reply from one scenario informs the other.
 
@@ -465,7 +450,7 @@ SCENARIO B
 ${second.prompt}`;
   const task = { family: "private-knowledge", response, types, answer, solution: structuredClone(answer), scenarios,
     metadata: { public: { scenarios: Object.fromEntries(Object.entries(scenarios)
-      .map(([id, scenario]) => [id, structuredClone(scenario.metadata.public)])) }, weights, baselines,
+      .map(([id, scenario]) => [id, structuredClone(scenario.metadata.public)])) }, weights,
       generationAttempts: Object.values(scenarios).reduce((sum, scenario) => sum + scenario.metadata.generationAttempts, 0),
       scenarioGenerationAttempts: Object.fromEntries(Object.entries(scenarios)
         .map(([id, scenario]) => [id, scenario.metadata.generationAttempts])),
