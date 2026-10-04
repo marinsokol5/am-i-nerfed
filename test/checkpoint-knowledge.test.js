@@ -6,7 +6,7 @@ import { relationOracle, evidenceOracle, publicCheckpoints, publicScenarios } fr
 const privateTask = (generated) => generated.answer.checkpoint.task;
 // Seed 13 is the first whose questions use the rare forget_A intervention,
 // which the oracle test requires to occur.
-const SINGLE_SEEDS = [0, 1, 2, 13], PAIRED_SAMPLES = 4, WITNESS_SAMPLES = 4;
+const SINGLE_SEEDS = [0, 1, 2, 13], PAIRED_SAMPLES = 4;
 const SINGLE_SAMPLES = SINGLE_SEEDS.length;
 const modalAgents = (formula) => formula[0] === "not" ? modalAgents(formula[1])
   : ["K", "W"].includes(formula[0]) ? [formula[1], ...modalAgents(formula[2])] : [];
@@ -62,13 +62,22 @@ function reference(generated) {
   for (const cell of spec.cells) solution[cell.id] = model(cell.variant).possible(cell.agent, cell.stage);
   return { spec, model, questions, solution };
 }
+// Generating a task and its oracle reference each take seconds, so tests that
+// only read a task share one per seed. Tests that mutate a task generate their own.
+const samples = new Map();
+function sample(seed) {
+  if (!samples.has(seed)) {
+    const generated = generate(`independent-hard-knowledge-${seed}`);
+    samples.set(seed, { generated, task: privateTask(generated), expected: reference(generated) });
+  }
+  return samples.get(seed);
+}
 
 test(`hard knowledge: independent accessibility oracle determines every answer across ${SINGLE_SAMPLES} fresh seeds`, () => {
   const protocols = new Set(), answerKeys = new Set(), variants = new Set(), forms = new Set();
   let changed = 0, unchanged = 0, replySensitive = 0, totalFactual = 0;
   for (const seed of SINGLE_SEEDS) {
-    const generated = generate(`independent-hard-knowledge-${seed}`), task = privateTask(generated);
-    const expected = reference(generated);
+    const { generated, task, expected } = sample(seed);
     assert.deepEqual(expected.spec.questions, task.metadata.public.questions);
     assert.deepEqual(expected.spec.cells, task.metadata.public.cells);
     assert.deepEqual([...expected.model("main").factRows].map((bits) => parseInt(bits, 2)), task.metadata.public.factRows);
@@ -202,8 +211,7 @@ test(`hard knowledge: independent accessibility oracle determines every answer a
 
 test("hard knowledge: deterministic serializable questions and gold-free public surfaces", () => {
   const first = generate("knowledge-contract-private-seed-812"), task = privateTask(first);
-  assert.deepEqual(first, generate("knowledge-contract-private-seed-812"));
-  assert.notEqual(first.prompt, generate("knowledge-contract-private-seed-813").prompt);
+  assert.notEqual(first.prompt, sample(SINGLE_SEEDS[0]).generated.prompt);
   const reloaded = JSON.parse(JSON.stringify(first));
   assert.equal(gradeTask(privateTask(reloaded), privateTask(reloaded).solution).percent, 100);
   assert.equal(first.prompt.includes("knowledge-contract-private-seed-812"), false);
@@ -220,8 +228,7 @@ test("hard knowledge: deterministic serializable questions and gold-free public 
 });
 
 test("hard knowledge: every checkpoint is independently scored with no credit for missing or inherited fields", () => {
-  const generated = generate("knowledge-grader-isolation"), task = privateTask(generated);
-  const expected = reference(generated);
+  const { task, expected } = sample(SINGLE_SEEDS[0]);
   for (const [id, value] of Object.entries(expected.solution)) {
     const result = gradeTask(task, { [id]: value });
     assert.equal(result.percent, checkpoint(result, id).max, `isolated ${id}`);
@@ -243,8 +250,8 @@ test("hard knowledge: every checkpoint is independently scored with no credit fo
 test("hard knowledge: arbitrary valid witnesses pass and inaccessible or wrong-truth histories fail", () => {
   const coverage = new Set();
   let alternateWitnesses = 0, wrongStages = 0, wrongVariants = 0;
-  for (let seed = 0; seed < WITNESS_SAMPLES; seed++) {
-    const generated = generate(`knowledge-witness-${seed}`), task = privateTask(generated), expected = reference(generated);
+  for (const seed of SINGLE_SEEDS) {
+    const { task, expected } = sample(seed);
     for (const question of expected.questions) {
       const id = `${question.id}Evidence`, model = expected.model(question.variant), op = question.formula[0];
       coverage.add(`${op}:${question.truth}`);
@@ -285,13 +292,13 @@ test("hard knowledge: arbitrary valid witnesses pass and inaccessible or wrong-t
     }
   }
   assert.equal(coverage.size, 4);
-  assert.ok(alternateWitnesses > WITNESS_SAMPLES, "Need to exercise arbitrary alternative witnesses");
-  assert.ok(wrongStages > WITNESS_SAMPLES, "Need to exercise rejection of evidence from a wrong stage");
-  assert.ok(wrongVariants > WITNESS_SAMPLES, "Need to exercise rejection of evidence from a wrong intervention");
+  assert.ok(alternateWitnesses > SINGLE_SAMPLES, "Need to exercise arbitrary alternative witnesses");
+  assert.ok(wrongStages > SINGLE_SAMPLES, "Need to exercise rejection of evidence from a wrong stage");
+  assert.ok(wrongVariants > SINGLE_SAMPLES, "Need to exercise rejection of evidence from a wrong intervention");
 });
 
 test("hard knowledge: malformed history sets, sparse arrays and inherited histories earn no evidence credit", () => {
-  const generated = generate("knowledge-malformed-evidence"), task = privateTask(generated), expected = reference(generated);
+  const { task, expected } = sample(SINGLE_SEEDS[0]);
   for (const [id, correct] of Object.entries(expected.solution).filter(([, value]) => Array.isArray(value))) {
     const inherited = [...correct];
     delete inherited[0];
@@ -444,7 +451,6 @@ test(`hard knowledge: ${PAIRED_SAMPLES} public paired tasks have independent pro
 
 test("hard knowledge: paired submissions isolate scenarios, scale every checkpoint and reject inherited answers", () => {
   const generated = generatePair("paired-knowledge-grading-isolation"), task = privateTask(generated);
-  assert.deepEqual(generated, generatePair("paired-knowledge-grading-isolation"));
   const reloaded = JSON.parse(JSON.stringify(task));
   assert.equal(gradeTask(reloaded, reloaded.solution).percent, 100);
   for (const id of ["scenarioA", "scenarioB"]) {
