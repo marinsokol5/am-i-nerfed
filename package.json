@@ -17,7 +17,7 @@
     "node": ">=22.20.0"
   },
   "scripts": {
-    "test": "node --test --experimental-test-isolation=none test/*.test.js",
+    "test": "node --test test/*.test.js",
     "version": "node scripts/skill-version.js",
     "prepack": "node scripts/skill-version.js --check"
   },
