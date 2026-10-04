@@ -55,7 +55,7 @@ const help = `am-i-nerfed — private reasoning assessments
   skill install [--yes] [--agent NAME] [--global|--project] [--copy]
   --version
 
-Five tasks per assessment; default medium difficulty and 120 seconds.
+Six tasks per assessment; default medium difficulty and 120 seconds.
 run launches a fresh native CLI session with a process watchdog.
 start/question/answer/status/finish compose an in-context assessment. They
 enforce the answer deadline but cannot stop an independently hosted agent.
