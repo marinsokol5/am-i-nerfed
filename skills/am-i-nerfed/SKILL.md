@@ -17,7 +17,7 @@ metadata:
 - Solve the tasks inside of the current conversation -> using the current model, reasoning effort, instructions, and prior conversation. Do not launch a fresh model, do not use a subagent, do not call `am-i-nerfed run`.
 - Solve by reasoning only -> no code calculations, browsing, file inspection, prior answers, outside models or delegation. Only the assessment CLI is permitted for retrieving questions, answering and checking time.
 - No correctness feedback is returned while an assessment is active. 
-- It's highly recommended to attempt all tasks before spending the remaining time on refinements. Use short reasoning passes and frequent partial answers to avoid losing work.
+- It's highly recommended to attempt all tasks before spending the remaining time on refinements. Use short reasoning passes and partial answers to avoid losing work. Partially correct answers influence final score, so saving something early is worth it.
 - There is no reward for finishing the assessment early or for stopping work with the timer still ticking. Saved answers are kept; being mid-thought when time runs out costs nothing.
 
 ## Assessment

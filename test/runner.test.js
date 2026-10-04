@@ -110,7 +110,7 @@ test("CLI and skill retain matching task counts and partial-answer guidance", ()
   const prompt = examPrompt({ seconds: 300, difficulty: "hard" });
   for (const shared of [
     "to complete, as well as you can, the six",
-    "It's highly recommended to attempt all tasks before spending the remaining time on refinements. Use short reasoning passes and frequent partial answers to avoid losing work.",
+    "It's highly recommended to attempt all tasks before spending the remaining time on refinements. Use short reasoning passes and partial answers to avoid losing work. Partially correct answers influence final score, so saving something early is worth it.",
     "Partial JSON objects merge recursively, omitted fields preserve prior work.",
     "No correctness feedback is returned while an assessment is active.",
   ]) {
