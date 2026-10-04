@@ -4,6 +4,7 @@ import {
   coordination,
   flatten,
   generateTaskBank,
+  knowledge,
   nest,
   tracking,
 } from "../src/task-bank.js";
@@ -11,7 +12,7 @@ import { grade } from "../src/grading.js";
 import { optimalProtocols } from "./protocol-oracle.js";
 
 // Coordination keys store each case's optimum and trivial baseline beside the
-// table; both must match independent enumeration, with room between them.
+// table; both must match independent enumeration, at least 3 points apart.
 function checkCoordinationKey(task) {
   const { table, baselines, ...optima } = task.answer.coordination;
   const reference = optimalProtocols(table);
@@ -20,7 +21,7 @@ function checkCoordinationKey(task) {
     assert.equal(baselines[name], reference.baselines[name], name);
     const [o, od] = optimum.split("/").map(Number),
       [b, bd] = baselines[name].split("/").map(Number);
-    assert.ok(o * bd > b * od, `${name}: ${optimum} vs ${baselines[name]}`);
+    assert.ok(o * bd - b * od >= 3 * od * bd, `${name}: ${optimum} vs ${baselines[name]}`);
   }
   return reference;
 }
@@ -58,19 +59,19 @@ function trivial(agent, symbols) {
   };
 }
 
-test("private banks deterministically contain five distinct tasks at each level", () => {
+test("private banks deterministically contain six distinct tasks per tier", () => {
   const a = generateTaskBank("synthetic-bank-a"),
     b = generateTaskBank("synthetic-bank-b");
   assert.deepEqual(a, generateTaskBank("synthetic-bank-a"));
   assert.notDeepEqual(a, b);
-  assert.equal(a.tasks.length, 15);
-  assert.equal(new Set(a.tasks.map((t) => t.promptHash)).size, 15);
+  assert.equal(a.tasks.length, 18);
+  assert.equal(new Set(a.tasks.map((t) => t.promptHash)).size, 18);
   for (const level of ["easy", "medium", "hard"])
     assert.deepEqual(
       a.tasks.filter((t) => t.difficulty === level).map((t) => t.family),
       level === "hard"
-        ? ["hats", "hats-xl", "knowledge", "tracking-xl", "coordination"]
-        : ["hats", "cards", "knowledge", "tracking", "coordination"],
+        ? ["hats-xl", "knowledge", "coordination", "coordination-three-mode", "adversarial-diagnosis", "reversible-synthesis"]
+        : ["hats", "cards", "knowledge", "tracking", "coordination", "reversible-synthesis"],
     );
   for (const task of a.tasks) {
     assert.equal(
@@ -315,6 +316,13 @@ test("every task presents a flat typed response shape that grades through nest",
       : true;
   for (const task of generateTaskBank("synthetic-response-shapes").tasks) {
     const flat = perfect(task);
+    if (task.answer.checkpoint) {
+      assert.deepEqual(Object.keys(task.response).sort(), Object.keys(flat).sort(), task.id);
+      for (const type of leaves(task.response))
+        assert.ok(primitives.has(type) || Object.hasOwn(task.types, type), task.id);
+      assert.equal(grade(task.answer, nest(task.answer, flat)).percent, 100, task.id);
+      continue;
+    }
     assert.deepEqual(keys(task.response), keys(flat), task.id);
     for (const type of leaves(task.response))
       assert.ok(primitives.has(type) || Object.hasOwn(task.types, type), task.id);
@@ -341,19 +349,22 @@ test("every task presents a flat typed response shape that grades through nest",
   }
 });
 
-test("hard knowledge scenario B differs from scenario A in at least half its answers", () => {
+test("hard knowledge uses causal evidence checkpoints while easy and medium retain their legacy format", () => {
   for (let i = 0; i < 25; i++) {
-    const task = generateTaskBank(`synthetic-scenarios-${i}`).tasks.find(
-      (t) => t.id === "hard-3",
-    );
-    const { scenarioA: a, scenarioB: b } = task.answer.knowledge;
-    const keys = Object.keys(a);
-    assert.ok(2 * keys.filter((k) => a[k] !== b[k]).length >= keys.length, `seed ${i}`);
-    // Both scenarios ask questions nested two to four deep.
-    const depths = [
-      ...task.prompt.matchAll(/^- q\d+: (?:physical|after reply 1|final): (.+)\.$/gm),
-    ].map(([, formula]) => formula.match(/[KW]_[ABC]\(/g).length);
-    assert.equal(depths.length, 16);
-    assert.ok(depths.every((depth) => depth >= 2 && depth <= 4), `seed ${i}`);
+    const task = knowledge(`synthetic-knowledge-checkpoints-${i}`, 2);
+    assert.equal(task.answer.checkpoint.family, "private-knowledge");
+    assert.deepEqual(Object.keys(task.response), ["scenarioA", "scenarioB"]);
+    assert.ok(Object.values(task.response).every(fields=>Object.keys(fields).length===14));
+    assert.equal(grade(task.answer, nest(task.answer, flatten(task.answer))).percent, 100);
+    assert.equal(task.answer.checkpoint.task.metadata.quality.counterfactualChanged, 4);
+    assert.equal(task.answer.checkpoint.task.metadata.quality.mainQuestionsUpdateDependentAtActual, 2);
+    assert.equal(task.answer.checkpoint.task.metadata.quality.repliesPerScenario, 3);
+    assert.equal(task.answer.checkpoint.task.metadata.quality.historiesPerScenario, 64);
+    assert.equal(task.answer.checkpoint.task.metadata.quality.agentsPerScenario, 4);
+  }
+  for (const level of [0, 1]) {
+    const task = knowledge(`synthetic-knowledge-unchanged-${level}`, level);
+    assert.equal(Object.hasOwn(task.answer, "checkpoint"), false);
+    assert.ok(task.answer.knowledge);
   }
 });

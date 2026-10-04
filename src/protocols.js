@@ -65,12 +65,14 @@ export function protocolBaselines(table, cases) {
 }
 
 const ratio = (value) => value.split("/").map(BigInt);
-/** Whether every case's optimum exceeds its baseline, so credit can vary. */
-export function hasRoom({ coordination: { table, baselines, ...optima } }) {
+/** Whether every case's optimum exceeds its baseline by at least `gap`
+ * weight points (and by something at gap 0), so credit can vary. */
+export function hasRoom({ coordination: { table, baselines, ...optima } }, gap = 0) {
   return Object.entries(optima).every(([name, optimum]) => {
     const [o, od] = ratio(optimum),
       [b, bd] = ratio(baselines[name]);
-    return o * bd > b * od;
+    const room = o * bd - b * od;
+    return room > 0n && room >= BigInt(gap) * od * bd;
   });
 }
 

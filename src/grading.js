@@ -1,4 +1,5 @@
 import { PROTOCOLS, protocolValue } from "./protocols.js";
+import { gradeCheckpoint } from "./checkpoint-grading.js";
 
 // Only aggregate stage counts leave the evaluator; no answers or field diagnostics.
 const STAGES = ["reports", "knowledge", "coordination", "counterfactual"];
@@ -70,6 +71,10 @@ function credit([n, d], baseline, optimum) {
 export function grade(answer, submission) {
   if (!answer || typeof answer !== "object" || Array.isArray(answer))
     throw Error("A graded case must have an answer object");
+  if (Object.hasOwn(answer, "checkpoint"))
+    return gradeCheckpoint(answer.checkpoint,
+      submission !== null && typeof submission === "object" && !Array.isArray(submission)
+        ? submission.checkpoint : submission);
   const stages = Object.fromEntries(
     STAGES.map((s) => [s, { correct: 0, total: 0, percent: 0 }]),
   );

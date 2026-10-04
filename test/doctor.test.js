@@ -55,7 +55,7 @@ test("doctor reports a ready baseline without clients, private content, or write
   assert.equal(result.initialized, true);
   assert.equal(result.baselineId, initialized.baselineId);
   assert.equal(result.taskBankVersion, initialized.taskBankVersion);
-  assert.equal(result.tasks, 15);
+  assert.equal(result.tasks, 18);
   assert.equal(f.command("doctor", "--init"), "true\n");
   assert.equal(result.clients.every(client => client.available === false), true);
   assert.doesNotMatch(raw, /"(?:seed|prompt|answer|drafts|receipt|runId)"/);

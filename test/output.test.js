@@ -32,7 +32,7 @@ test("start, answer and status are compact by default; verbose restores metadata
   const f = fixture(t), start = f.json("start", "--seconds", "500");
   assert.deepEqual(Object.keys(start), ["runId", "difficulty", "clock", "tasks"]);
   assert.deepEqual(Object.keys(start.clock), clockKeys);
-  assert.ok(start.tasks.length === 5 && start.tasks.every(id => typeof id === "string"));
+  assert.ok(start.tasks.length === 6 && start.tasks.every(id => typeof id === "string"));
   const startVerbose = f.json("start", "--seconds", "500", "--verbose");
   assert.equal(typeof startVerbose.taskBankHash, "string");
   assert.equal(startVerbose.tasks[0].submitted, false);
@@ -78,7 +78,7 @@ test("completed status keeps scores compact and normalizes legacy receipts witho
   assert.deepEqual(Object.keys(compact.result), ["percent", "tasks"]);
   assert.deepEqual(Object.keys(compact.result.tasks[0]), ["id", "percent"]);
   assert.equal(compact.result.percent, verbose.result.percent);
-  assert.equal(verbose.result.taskWeightPercent, 20);
+  assert.equal(verbose.result.taskWeightPercent, 100 / 6);
   assert.equal(typeof verbose.result.tasks[0].stages, "object");
   assert.equal(verbose.taskBankHash, record.receipt.bankHash);
   assert.equal("bankHash" in verbose, false);
@@ -195,7 +195,7 @@ test("run requires --agent, --model and --effort; init saves no defaults", t => 
   assert.equal(f.exec("init", "--agent", "codex").status, 1);
 });
 
-test("questions returns all five tasks with one clock, and only the closed status after the run ends", t => {
+test("questions returns all six tasks with one clock, and only the closed status after the run ends", t => {
   const f = fixture(t), start = f.json("start", "--seconds", "500");
   const all = f.json("questions", "--run", start.runId);
   assert.deepEqual(Object.keys(all), ["remainingSeconds", "tasks"]);
@@ -208,4 +208,22 @@ test("questions returns all five tasks with one clock, and only the closed statu
   assert.equal(f.exec("questions", "--run", start.runId, "--verbose").status, 1);
   f.json("finish", "--run", start.runId);
   assert.deepEqual(f.json("questions", "--run", start.runId), { status: "finished", remainingSeconds: 0 });
+});
+
+test("hard output exposes six tasks consistently and keeps scoring weights in verbose results", t => {
+  const f = fixture(t), start = f.json("start", "--difficulty", "hard", "--seconds", "300");
+  assert.deepEqual(start.tasks, ["hard-1", "hard-2", "hard-3", "hard-4", "hard-5", "hard-6"]);
+  const questions = f.json("questions", "--run", start.runId);
+  assert.deepEqual(questions.tasks.map(q => q.taskId), start.tasks);
+  const answer = f.json("answer", "--run", start.runId, "--task", "hard-6", "--json", "null");
+  assert.equal(answer.accepted, true);
+  const active = f.json("status", "--run", start.runId);
+  assert.equal(active.tasks.length, 6);
+  assert.equal(active.tasks[5].submitted, true);
+  const compact = f.json("finish", "--run", start.runId);
+  const verbose = f.json("status", "--run", start.runId, "--verbose");
+  assert.equal(compact.result.tasks.length, 6);
+  assert.equal("taskWeightPercent" in compact.result, false);
+  assert.equal(verbose.result.taskWeightPercent, 100 / 6);
+  assert.equal(compact.result.percent, verbose.result.percent);
 });

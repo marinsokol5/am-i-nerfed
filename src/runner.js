@@ -28,17 +28,17 @@ export const MINIMAL_SYSTEM_PROMPT = "Follow the user's instructions.";
 export function examPrompt({ seconds = 120, difficulty = "medium" } = {}) {
   return `## Rules
 
-- You have limited ${seconds} seconds to complete, as well as you can, 5 ${difficulty} tasks; the timer started when this session launched and is exposed to you at any moment through \`./assessment timer\`.
+- You have limited ${seconds} seconds to complete, as well as you can, the six ${difficulty} tasks; the timer started when this session launched and is exposed to you at any moment through \`./assessment timer\`.
 - Solve by reasoning only -> no code calculations, browsing, file inspection, prior answers, outside models or delegation. Only the assessment commands below are permitted for retrieving questions, answering and checking time.
 - No correctness feedback is returned while an assessment is active.
-- It's highly recommended to attempt all 5 tasks before spending the remaining time on refinements. Use short reasoning passes and frequent partial answers to avoid losing work.
+- It's highly recommended to attempt all tasks before spending the remaining time on refinements. Use short reasoning passes and frequent partial answers to avoid losing work.
 - There is no reward for finishing the assessment early or for stopping work with the timer still ticking. Saved answers are kept; being mid-thought when time runs out costs nothing.
 - Run one command at a time, exactly as shown, without shell wrappers, pipelines or other syntax.
 
 ## Assessment
 
-1. Start the assessment -> \`./assessment start\`. Call it once, immediately, and retain the five returned task IDs (<TASK-ID>).
-2. Retrieve individual task and see currently submitted answer -> \`./assessment question --task <TASK-ID>\`, or all five at once -> \`./assessment questions\`. Answer in the shape of \`response\`; each value is a JSON type (boolean, integer, string) or a name defined in \`types\`.
+1. Start the assessment -> \`./assessment start\`. Call it once, immediately, and retain the returned task IDs (<TASK-ID>).
+2. Retrieve individual task and see currently submitted answer -> \`./assessment question --task <TASK-ID>\`, or all tasks at once -> \`./assessment questions\`. Answer in the shape of \`response\`; each value is a JSON type (boolean, integer, string) or a name defined in \`types\`.
 3. Submit a new answer or revise existing -> \`./assessment answer --task <TASK-ID> --json '<JSON>'\`. Partial JSON objects merge recursively, omitted fields preserve prior work.
 4. You can check timer at any moment through \`./assessment timer\`.
 5. At the deadline your process is stopped and your saved answers are graded; late answers/revisions are rejected. If you are 100% sure in each of your answers and see no use in thinking more about any one of them, you can call \`./assessment finish\` instead of waiting. Ending your turn also ends the assessment.
@@ -220,7 +220,7 @@ export function permittedCommand(command) {
       tokens[0] === "./assessment" &&
       tokens[1] === "answer" &&
       tokens[2] === "--task" &&
-      /^(easy|medium|hard)-[1-5]$/.test(tokens[3]) &&
+      /^(?:easy|medium|hard)-[1-6]$/.test(tokens[3]) &&
       tokens[4] === "--json"
     )
   )
@@ -241,7 +241,7 @@ export function permittedCommand(command) {
   if (!["question", "answer"].includes(action)) return false;
   if (
     tokens[0] !== "--task" ||
-    !/^(easy|medium|hard)-[1-5]$/.test(tokens[1] ?? "")
+    !/^(?:easy|medium|hard)-[1-6]$/.test(tokens[1] ?? "")
   )
     return false;
   if (action === "question") return tokens.length === 2;

@@ -13,6 +13,7 @@ import {
   runAssessment,
   MINIMAL_SYSTEM_PROMPT,
   clientCommand,
+  examPrompt,
 } from "../src/runner.js";
 import { listHistory } from "../src/assessment.js";
 import { codexEnvironment, codexEvidence } from "../src/codex-context.js";
@@ -58,6 +59,13 @@ test("transport audit permits literal answers and rejects command execution hidd
   for (const command of [
     "./assessment start",
     "./assessment question --task medium-1",
+    "./assessment question --task easy-6",
+    "./assessment question --task medium-6",
+    "./assessment question --task hard-6",
+    `./assessment answer --task easy-6 --json '{"program":"CDF"}'`,
+    `./assessment answer --task medium-6 --json '{"program":"ABCDEF"}`,
+    `./assessment answer --task hard-6 --json '{"program":"AB"}'`,
+    `./assessment answer --task hard-6 --json '{"program":"AB"}`,
     `./assessment answer --task hard-5 --json '{"coordination":{"base":"3/2"}}'`,
     `/bin/zsh -lc './assessment status'`,
     "./assessment status --verbose",
@@ -78,7 +86,11 @@ test("transport audit permits literal answers and rejects command execution hidd
     "./assessment status > dump",
     './assessment answer --task easy-1 --json "$(cat secret)"',
     "./assessment start extra",
-    "./assessment question --task hard-6",
+    "./assessment question --task easy-7",
+    "./assessment question --task medium-7",
+    "./assessment question --task hard-7",
+    `./assessment answer --task easy-7 --json 'null'`,
+    `./assessment answer --task medium-7 --json 'null`,
     "./assessment status\n./assessment finish",
     "./assessment status --verbose extra",
     "./assessment status --verbose --verbose",
@@ -92,6 +104,24 @@ test("transport audit permits literal answers and rejects command execution hidd
     './assessment answer --task medium-3 --json "$(cat secret)',
   ])
     assert.equal(permittedCommand(command), false, command);
+});
+test("CLI and skill retain matching task counts and partial-answer guidance", () => {
+  const skill = fs.readFileSync(new URL("../skills/am-i-nerfed/SKILL.md", import.meta.url), "utf8");
+  const prompt = examPrompt({ seconds: 300, difficulty: "hard" });
+  for (const shared of [
+    "to complete, as well as you can, the six",
+    "It's highly recommended to attempt all tasks before spending the remaining time on refinements. Use short reasoning passes and frequent partial answers to avoid losing work.",
+    "Partial JSON objects merge recursively, omitted fields preserve prior work.",
+    "No correctness feedback is returned while an assessment is active.",
+  ]) {
+    assert.ok(prompt.includes(shared), shared);
+    assert.ok(skill.includes(shared), shared);
+  }
+  assert.match(prompt, /limited 300 seconds/);
+  assert.match(prompt, /the six hard tasks/);
+  assert.match(skill, /the six <DIFFICULTY> tasks/);
+  assert.doesNotMatch(prompt, /all five|five returned|all 5 tasks/);
+  assert.doesNotMatch(skill, /all five|five task IDs|all 5 tasks/);
 });
 test("both adapters preserve native system prompts and exclude inherited custom settings", () => {
   for (const agent of ["claude", "codex"]) {
@@ -239,7 +269,7 @@ test("post-close cleanup failure preserves completed execution metadata", async 
     mock.mock.restore();
   }
 });
-test("packaged runner and transport complete a real five-task lifecycle using a fake native client", async () => {
+test("packaged runner and transport complete six-task lifecycles at every difficulty using a fake native client", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nerfed-native-")),
     bin = path.join(dir, "bin"),
     state = path.join(dir, "state");
@@ -254,7 +284,7 @@ test("packaged runner and transport complete a real five-task lifecycle using a 
     encoding: "utf8",
   });
   assert.equal(init.status, 0, init.stderr);
-  const fake = `#!${process.execPath}\nconst cp=require('node:child_process');if(process.argv.includes('--version')){console.log('fake-cli-test');process.exit(0);}process.stdin.resume();process.stdin.on('end',()=>{const call=(args)=>{const r=cp.spawnSync('./assessment',args,{encoding:'utf8'});if(r.status)throw Error(r.stderr);return JSON.parse(r.stdout)};const run=call(['start']);const all=call(['questions']);if(all.tasks.length!==5)throw Error('questions');for(const t of run.tasks){call(['question','--task',t]);call(['answer','--task',t,'--json','null']);}call(['finish']);console.log(JSON.stringify({type:'turn.completed',usage:{output_tokens:1}}));});\n`;
+  const fake = `#!${process.execPath}\nconst cp=require('node:child_process');if(process.argv.includes('--version')){console.log('fake-cli-test');process.exit(0);}process.stdin.resume();process.stdin.on('end',()=>{const call=(args)=>{const r=cp.spawnSync('./assessment',args,{encoding:'utf8'});if(r.status)throw Error(r.stderr);return JSON.parse(r.stdout)};const run=call(['start']);const all=call(['questions']);if(all.tasks.length!==6 || !run.tasks.includes(run.difficulty+'-6'))throw Error('questions');for(const t of run.tasks){call(['question','--task',t]);call(['answer','--task',t,'--json','null']);}call(['finish']);console.log(JSON.stringify({type:'turn.completed',usage:{output_tokens:1}}));});\n`;
   fs.writeFileSync(path.join(bin, "codex"), fake, { mode: 0o700 });
   const oldPath = process.env.PATH,
     oldState = process.env.AM_I_NERFED_HOME,
@@ -266,23 +296,26 @@ test("packaged runner and transport complete a real five-task lifecycle using a 
   process.env.PATH = bin + path.delimiter + oldPath;
   process.env.AM_I_NERFED_HOME = state;
   try {
-    const result = await runAssessment({
-      agent: "codex",
-      model: "fake-model",
-      effort: "medium",
-      difficulty: "easy",
-      seconds: 200,
-    });
-    assert.equal(result.status, "finished");
-    assert.equal(result.result.tasks.length, 5);
-    assert.equal(result.result.percent, 0);
-    assert.equal(result.invocation, "cli");
-    assert.equal(result.clock.durationSeconds, 200);
-    assert.equal(result.clockEnforcement, "process-watchdog");
-    assert.equal(result.execution.failure, null);
-    assert.equal(result.systemPrompt, "native");
-    assert.equal(fs.existsSync(path.join(state, ".lock")), false);
-    // The second run launches through a wrapper that requires an account argument.
+    for (const difficulty of ["easy", "medium", "hard"]) {
+      const result = await runAssessment({
+        agent: "codex",
+        model: "fake-model",
+        effort: "medium",
+        difficulty,
+        seconds: 200,
+      });
+      assert.equal(result.status, "finished");
+      assert.equal(result.result.tasks.length, 6);
+      assert.equal(result.result.taskWeightPercent, 100 / 6);
+      assert.equal(result.result.percent, 0);
+      assert.equal(result.invocation, "cli");
+      assert.equal(result.clock.durationSeconds, 200);
+      assert.equal(result.clockEnforcement, "process-watchdog");
+      assert.equal(result.execution.failure, null);
+      assert.equal(result.systemPrompt, "native");
+      assert.equal(fs.existsSync(path.join(state, ".lock")), false);
+    }
+    // An additional run launches through a wrapper that requires an account argument.
     fs.writeFileSync(
       path.join(bin, "launcher"),
       `#!/bin/sh\n[ "$1" = "acct-x" ] || exit 9\nshift\nexec "${path.join(bin, "codex")}" "$@"\n`,
@@ -293,7 +326,7 @@ test("packaged runner and transport complete a real five-task lifecycle using a 
       agent: "codex",
       model: "fake-model",
       effort: "medium",
-      difficulty: "easy",
+      difficulty: "hard",
       seconds: 200,
       systemPrompt: "none",
     });

@@ -8,6 +8,7 @@ import {
   LEVELS,
   nest,
   TASK_BANK_VERSION,
+  TASK_COUNTS,
 } from "./task-bank.js";
 import { active, privateDirectory, readJSON, writeJSON } from "./storage.js";
 import { grade } from "./grading.js";
@@ -29,15 +30,20 @@ export function prepareBank(state) {
 function upgradeBank(state, file) {
   const bank = readBank(state);
   if (bank.taskBankVersion >= TASK_BANK_VERSION) return;
-  const next = generateTaskBank(state.dataset.seed);
-  const same = bank.tasks.every((task, i) => {
-    const t = next.tasks[i];
-    return (
-      t.id === task.id &&
-      JSON.stringify(answerLeaves(t.answer)) ===
-        JSON.stringify(answerLeaves(task.answer))
-    );
-  });
+  const expectedCount = Object.values(TASK_COUNTS).reduce((sum, count) => sum + count, 0);
+  const next = bank.tasks.length === expectedCount ? generateTaskBank(state.dataset.seed) : null;
+  const same =
+    next !== null && bank.tasks.length === next.tasks.length &&
+    bank.tasks.every((task, i) => {
+      const t = next.tasks[i];
+      return (
+        t.id === task.id &&
+        t.family === task.family &&
+        t.difficulty === task.difficulty &&
+        JSON.stringify(answerLeaves(t.answer)) ===
+          JSON.stringify(answerLeaves(task.answer))
+      );
+    });
   if (!same)
     throw Error(
       "This task bank cannot be upgraded because the current version changed its puzzles. Run am-i-nerfed reset to generate a new bank; history is kept.",
@@ -46,12 +52,24 @@ function upgradeBank(state, file) {
 }
 function readBank(state) {
   const bank = readJSON(path.join(state.base, "task-bank.json"));
+  // Versions 9 and 13 expanded the hard and easy/medium tiers respectively.
+  // Frozen banks and unfinished assessments retain their original task counts.
+  const counts =
+    bank.taskBankVersion < 9
+      ? { easy: 5, medium: 5, hard: 5 }
+      : bank.taskBankVersion < 13
+        ? { easy: 5, medium: 5, hard: 6 }
+        : TASK_COUNTS;
+  const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
   if (
     !Number.isInteger(bank.taskBankVersion) ||
-    bank.tasks?.length !== 15 ||
-    new Set(bank.tasks.map((t) => t.id)).size !== 15 ||
+    bank.taskBankVersion < 1 ||
+    !Array.isArray(bank.tasks) ||
+    bank.tasks.length !== total ||
+    new Set(bank.tasks.map((t) => t?.id)).size !== total ||
     LEVELS.some(
-      (level) => bank.tasks.filter((t) => t.difficulty === level).length !== 5,
+      (level) =>
+        bank.tasks.filter((t) => t?.difficulty === level).length !== counts[level],
     )
   )
     throw Error("Invalid frozen task bank");
@@ -237,7 +255,7 @@ export function assessmentAction(state, action, opts, time = Date.now) {
       finishedAt: record.finishedAt,
       result: {
         percent: tasks.reduce((sum, t) => sum + t.percent, 0) / tasks.length,
-        taskWeightPercent: 20,
+        taskWeightPercent: 100 / tasks.length,
         tasks,
       },
     };

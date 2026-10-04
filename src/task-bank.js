@@ -2,6 +2,10 @@ import { createHash, createHmac } from "node:crypto";
 import { randomSource } from "./random.js";
 import { generateCompact } from "./compact.js";
 import { coordinationTask } from "./coordination-task.js";
+import { generate as coordinationCheckpoint } from "./checkpoint-coordination.js";
+import { generate as diagnosisCheckpoint } from "./checkpoint-diagnosis.js";
+import { generate as synthesisCheckpoint, generateShort as shortSynthesis } from "./checkpoint-synthesis.js";
+import { generate as knowledgeCheckpoint } from "./checkpoint-knowledge.js";
 
 // Version 2 presents the same puzzles as version 1 with typed response shapes.
 // Version 3 regenerates hard knowledge scenario B when it repeats scenario A.
@@ -9,8 +13,15 @@ import { coordinationTask } from "./coordination-task.js";
 // Version 5 asks only hats nobody names and caps what copying predicts.
 // Version 6 caps the most common alternative reply at half.
 // Version 7 scores coordination protocols and enlarges the hard tier.
-export const TASK_BANK_VERSION = 7;
+// Version 8 keeps at least 3 points between coordination baseline and optimum.
+// Version 9 replaces hard hats/tracking-xl with three seeded checkpoint tasks.
+// Version 10 replaces hard knowledge with causally filtered evidence checkpoints.
+// Version 11 expands hard knowledge to four agents and 64 histories per scenario.
+// Version 12 excludes knowledge queries equivalent to simple claims or replies.
+// Version 13 adds a short synthesis task to easy and medium.
+export const TASK_BANK_VERSION = 13;
 export const LEVELS = ["easy", "medium", "hard"];
+export const TASK_COUNTS = { easy: 6, medium: 6, hard: 6 };
 export const hash = (value) =>
   createHash("sha256")
     .update(typeof value === "string" ? value : JSON.stringify(value))
@@ -28,6 +39,7 @@ const shape = (value, type) =>
     : type;
 // Answer keys group fields by scoring stage; solvers see one flat object.
 export function flatten(answer) {
+  if (answer?.checkpoint) return structuredClone(answer.checkpoint.task.solution);
   const flat = {};
   for (const fields of Object.values(answer))
     for (const [key, value] of Object.entries(fields)) {
@@ -39,6 +51,7 @@ export function flatten(answer) {
 export function nest(answer, flat) {
   if (flat === null || typeof flat !== "object" || Array.isArray(flat))
     return flat;
+  if (answer?.checkpoint) return { checkpoint: flat };
   return Object.fromEntries(
     Object.entries(answer).map(([stage, fields]) => [
       stage,
@@ -411,7 +424,7 @@ export function tracking(seed, level) {
   };
 }
 
-function knowledge(seed, level) {
+export function knowledge(seed, level) {
   if (level < 2) {
     const { prompt, answer } = generateCompact(
       seed,
@@ -419,47 +432,22 @@ function knowledge(seed, level) {
     );
     return { prompt, answer, response: shape(flatten(answer), "boolean") };
   }
-  // Scenario B must differ from A in at least half its answers, otherwise
-  // the second protocol adds little beyond the first. Both ask deeper nesting.
-  const first = generateCompact(derive(seed, "first"), "deep");
-  const differing = (b) =>
-    Object.entries(flatten(first.answer)).filter(
-      ([key, value]) => flatten(b.answer)[key] !== value,
-    ).length;
-  let second;
-  for (let attempt = 0; ; attempt++) {
-    if (attempt === 200) throw Error("Could not generate distinct scenarios.");
-    second = generateCompact(
-      derive(seed, attempt ? `second/${attempt}` : "second"),
-      "deep",
-    );
-    if (2 * differing(second) >= Object.keys(flatten(first.answer)).length)
-      break;
-  }
-  const answer = {
-    knowledge: {
-      scenarioA: flatten(first.answer),
-      scenarioB: flatten(second.answer),
-    },
-  };
-  return {
-    prompt: `Solve these two independent protocols. Their agents and observations are separate. Answer scenario A under scenarioA and scenario B under scenarioB.\nSCENARIO A\n${first.prompt}\nSCENARIO B\n${second.prompt}`,
-    answer,
-    response: shape(answer.knowledge, "boolean"),
-  };
+  return knowledgeCheckpoint(seed);
 }
 // Coordination difficulty is the table: symbols per agent, rows, and cases.
 const CASES = ["base", "mixed", "mode_1", "mode_2", "binding", "broadcast"];
+// Every case keeps at least 3 weight points between baseline and optimum, so
+// most cases have protocols that earn partial credit rather than all or nothing.
 const COORDINATION = [
-  { symbols: 2, rows: 6, cases: ["base", "mode_1", "mode_2"] },
-  { symbols: 3, rows: 18, cases: CASES },
-  { symbols: 4, rows: 26, cases: CASES },
+  { symbols: 2, rows: 6, cases: ["base", "mode_1", "mode_2"], gap: 3 },
+  { symbols: 3, rows: 18, cases: CASES, gap: 3 },
+  { symbols: 4, rows: 26, cases: CASES, gap: 3 },
 ];
 export function coordination(seed, level) {
   return coordinationTask(seed, COORDINATION[level]);
 }
-// Each tier lists its families in task order. Hard trades cards for larger
-// hat and tracking puzzles.
+// Each tier lists its families in task order. Hard retains hats-xl, private
+// knowledge and coordination, followed by three seeded checkpoint formats.
 const FAMILIES = [
   ["hats", hats],
   ["cards", cards],
@@ -468,14 +456,15 @@ const FAMILIES = [
   ["coordination", coordination],
 ];
 const TIERS = [
-  FAMILIES,
-  FAMILIES,
+  [...FAMILIES, ["reversible-synthesis", shortSynthesis]],
+  [...FAMILIES, ["reversible-synthesis", shortSynthesis]],
   [
-    ["hats", hats],
     ["hats-xl", (seed) => hats(seed, 3)],
     ["knowledge", knowledge],
-    ["tracking-xl", (seed) => tracking(seed, 3)],
     ["coordination", coordination],
+    ["coordination-three-mode", coordinationCheckpoint],
+    ["adversarial-diagnosis", diagnosisCheckpoint],
+    ["reversible-synthesis", synthesisCheckpoint],
   ],
 ];
 export function generateTaskBank(seed) {

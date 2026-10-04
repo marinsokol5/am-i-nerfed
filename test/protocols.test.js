@@ -112,6 +112,18 @@ test("baselines are the best trivial protocol per case, and the best trivial mix
   assert.equal(hasRoom({ coordination: others }), true);
 });
 
+test("room can require a minimum gap in weight points, fractions included", () => {
+  const key = (optimum, baseline) => ({
+    coordination: { base: optimum, baselines: { base: baseline }, table: {} },
+  });
+  assert.equal(hasRoom(key("5/1", "2/1"), 3), true);
+  assert.equal(hasRoom(key("5/1", "2/1"), 4), false);
+  assert.equal(hasRoom(key("13/4", "1/4"), 3), true);
+  assert.equal(hasRoom(key("13/4", "1/3"), 3), false);
+  // A zero gap still needs some room.
+  assert.equal(hasRoom(key("2/1", "2/1"), 0), false);
+});
+
 test("each case earns the share of the gap from its baseline to its optimum", () => {
   const answer = handKey();
   const result = grade(answer, {

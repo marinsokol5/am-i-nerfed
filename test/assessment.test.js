@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import {
   flatten,
   generateTaskBank,
+  hash,
   TASK_BANK_VERSION,
 } from "../src/task-bank.js";
 import {
@@ -18,8 +19,10 @@ import {
   listHistory,
   annotateAssessment,
   destroyHistory,
+  initializationStatus,
 } from "../src/assessment.js";
 import { optimalProtocols } from "./protocol-oracle.js";
+import { generateCompact } from "../src/compact.js";
 const bank = generateTaskBank("synthetic-assessment");
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "am-i-nerfed-test-"));
@@ -48,7 +51,7 @@ function fixture() {
     cleanup: () => fs.rmSync(root, { recursive: true, force: true }),
   };
 }
-test("five-task run preserves partial work, grades equally and permanently closes on early finish", () => {
+test("six-task run preserves partial work, grades equally and permanently closes on early finish", () => {
   const f = fixture(),
     now = Date.now();
   try {
@@ -57,7 +60,7 @@ test("five-task run preserves partial work, grades equally and permanently close
       { invocation: "skill", model: "known-model", effort: "high" },
       now,
     );
-    assert.equal(start.tasks.length, 5);
+    assert.equal(start.tasks.length, 6);
     assert.equal(start.difficulty, "medium");
     assert.equal(start.clock.remainingSeconds, 120);
     assert.equal(start.clockEnforcement, "answer-deadline");
@@ -110,7 +113,7 @@ test("five-task run preserves partial work, grades equally and permanently close
       { runId },
       () => now + 30000,
     );
-    assert.equal(receipt.result.percent, 20);
+    assert.equal(receipt.result.percent, 100 / 6);
     assert.equal(receipt.clock.elapsedSeconds, 30);
     assert.equal(receipt.status, "finished");
     const refused = assessmentAction(
@@ -120,13 +123,79 @@ test("five-task run preserves partial work, grades equally and permanently close
       () => now + 31000,
     );
     assert.equal(refused.accepted, false);
-    assert.equal(refused.result.percent, 20);
+    assert.equal(refused.result.percent, 100 / 6);
     assert.deepEqual(
       assessmentAction(f.state, "finish", { runId }, () => now + 40000),
       receipt,
     );
   } finally {
     f.cleanup();
+  }
+});
+test("six hard tasks share equal weight and the sixth task supports the full lifecycle", () => {
+  const f = fixture(), now = Date.now();
+  try {
+    const start = startAssessment(f.state, { difficulty: "hard", seconds: 300 }, now);
+    assert.deepEqual(start.tasks.map(({ id }) => id),
+      ["hard-1", "hard-2", "hard-3", "hard-4", "hard-5", "hard-6"]);
+    const runId = start.runId;
+    const all = assessmentAction(f.state, "questions", { runId }, () => now + 1);
+    assert.equal(all.questions.length, 6);
+    const sixth = assessmentAction(f.state, "question", { runId, taskId: "hard-6" }, () => now + 2);
+    assert.equal(typeof sixth.task, "string");
+    assert.deepEqual(sixth.submitted, {});
+    const saved = assessmentAction(f.state, "answer", {
+      runId, taskId: "hard-6", patch: null,
+    }, () => now + 3);
+    assert.equal(saved.accepted, true);
+    assert.equal(saved.result, undefined);
+    assessmentAction(f.state, "answer", {
+      runId, taskId: "hard-1", patch: flatten(bank.tasks.find(t => t.id === "hard-1").answer),
+    }, () => now + 4);
+    const receipt = assessmentAction(f.state, "finish", { runId }, () => now + 5);
+    assert.equal(receipt.result.tasks.length, 6);
+    assert.equal(receipt.result.taskWeightPercent, 100 / 6);
+    assert.equal(receipt.result.tasks[0].percent, 100);
+    assert.equal(receipt.result.tasks[5].percent, 0);
+    assert.equal(receipt.result.percent, 100 / 6);
+    assert.equal(assessmentAction(f.state, "answer", {
+      runId, taskId: "hard-6", patch: {},
+    }, () => now + 6).accepted, false);
+  } finally {
+    f.cleanup();
+  }
+});
+test("easy and medium sixth tasks support partial credit, revision, and equal task weighting", () => {
+  for (const difficulty of ["easy", "medium"]) {
+    const f = fixture(), now = Date.now();
+    try {
+      const { runId, tasks } = startAssessment(f.state, { difficulty }, now);
+      const taskId = `${difficulty}-6`, task = bank.tasks.find(t => t.id === taskId);
+      assert.equal(tasks.length, 6);
+      assert.equal(task.family, "reversible-synthesis");
+      const question = assessmentAction(f.state, "question", { runId, taskId }, () => now + 1);
+      assert.deepEqual(question.response, { program: "Program" });
+      assert.deepEqual(question.submitted, {});
+      const solution = flatten(task.answer);
+      const saved = assessmentAction(f.state, "answer", {
+        runId, taskId, patch: { program: solution.program + "BB" },
+      }, () => now + 2);
+      assert.equal(saved.accepted, true);
+      assert.equal(saved.result, undefined);
+      const receipt = assessmentAction(f.state, "finish", { runId }, () => now + 3);
+      assert.equal(receipt.result.tasks[5].percent, 70);
+      assert.equal(receipt.result.percent, 70 / 6);
+      assert.equal(receipt.result.taskWeightPercent, 100 / 6);
+      assert.equal(receipt.result.tasks[5].originalGoalComplete, false);
+
+      const revised = startAssessment(f.state, { difficulty }, now);
+      assessmentAction(f.state, "answer", { runId: revised.runId, taskId, patch: { program: "A" } }, () => now + 1);
+      assessmentAction(f.state, "answer", { runId: revised.runId, taskId, patch: solution }, () => now + 2);
+      const full = assessmentAction(f.state, "finish", { runId: revised.runId }, () => now + 3);
+      assert.equal(full.result.tasks[5].percent, 100);
+      assert.equal(full.result.tasks[5].originalGoalComplete, true);
+      assert.equal(full.result.percent, 100 / 6);
+    } finally { f.cleanup(); }
   }
 });
 test("coordination drafts merge protocol by protocol and score by the value they achieve", () => {
@@ -156,7 +225,7 @@ test("coordination drafts merge protocol by protocol and score by the value they
       total: 6,
       percent: 100,
     });
-    assert.equal(receipt.result.percent, 20);
+    assert.equal(receipt.result.percent, 100 / 6);
   } finally {
     f.cleanup();
   }
@@ -364,7 +433,7 @@ test("arbitrary whole-second budgets retain their exact deadline and history ide
         () => now + seconds * 1000,
       );
       assert.equal(late.accepted, false);
-      assert.equal(late.result.percent, 20);
+      assert.equal(late.result.percent, 100 / 6);
       assert.equal(late.clock.elapsedSeconds, seconds);
       assert.equal(
         listHistory(f.root, { durationSeconds: seconds }).runs.length,
@@ -376,28 +445,104 @@ test("arbitrary whole-second budgets retain their exact deadline and history ide
   }
 });
 
-test("starting a run upgrades an older bank only when its answers regenerate identically", () => {
+for (const version of [8, 12]) test(`version ${version} banks retain their five-task easy/medium assessments without a silent expansion`, () => {
   const legacy = structuredClone(bank);
-  legacy.taskBankVersion = 1;
-  for (const task of legacy.tasks) {
-    delete task.types;
-    delete task.response;
-    task.prompt = `Am I nerfed: ${task.difficulty}\n\n${task.prompt}`;
-  }
+  legacy.taskBankVersion = version;
+  legacy.tasks = legacy.tasks.filter(t => !["easy-6", "medium-6", ...(version < 9 ? ["hard-6"] : [])].includes(t.id));
   const f = fixture(),
-    file = path.join(f.state.base, "task-bank.json");
+    file = path.join(f.state.base, "task-bank.json"), now = Date.now();
   try {
+    // Model a run created before its easy/medium tier was expanded.
+    const start = startAssessment(f.state, { difficulty: "medium" }, now);
+    const runFile = assessmentPath(f.state, start.runId);
+    const record = JSON.parse(fs.readFileSync(runFile));
+    record.taskBankVersion = version;
+    record.privateBankHash = hash(legacy);
+    record.publicBankHash = hash({ version, tasks: legacy.tasks.map(({ id, promptHash, difficulty, family }) =>
+      ({ id, promptHash, difficulty, family })) });
+    record.tasks = legacy.tasks.filter(t => t.difficulty === "medium").map(({ id, family, promptHash }) => ({ id, family, promptHash }));
+    fs.writeFileSync(runFile, JSON.stringify(record));
     fs.writeFileSync(file, JSON.stringify(legacy));
-    const start = startAssessment(f.state, { difficulty: "easy" });
-    assert.equal(start.taskBankVersion, TASK_BANK_VERSION);
-    assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")), bank);
-    legacy.tasks[0].answer.knowledge.hats.A = "not-a-color";
-    fs.writeFileSync(file, JSON.stringify(legacy));
-    assert.throws(() => startAssessment(f.state, {}), /reset/);
-    assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).taskBankVersion, 1);
+    const before = fs.readFileSync(file, "utf8"), runBefore = fs.readFileSync(runFile, "utf8");
+    assert.deepEqual(initializationStatus(f.root), {
+      initialized: true, baselineId: f.state.current.baselineId,
+      taskBankVersion: version, tasks: version < 9 ? 15 : 16,
+    });
+    assert.throws(() => startAssessment(f.state, {}), /changed its puzzles.*reset.*history is kept/);
+    assert.equal(fs.readFileSync(file, "utf8"), before);
+    assert.equal(fs.readFileSync(runFile, "utf8"), runBefore);
+    const taskId = start.tasks[0].id;
+    assessmentAction(f.state, "answer", {
+      runId: start.runId, taskId,
+      patch: flatten(legacy.tasks.find(t => t.id === taskId).answer),
+    }, () => now + 1);
+    const receipt = assessmentAction(f.state, "finish", { runId: start.runId }, () => now + 2);
+    assert.equal(receipt.taskBankVersion, version);
+    assert.equal(receipt.result.tasks.length, 5);
+    assert.equal(receipt.result.taskWeightPercent, 20);
+    assert.equal(receipt.result.percent, 20);
+    assert.equal(listHistory(f.root).runs[0].percent, 20);
+    assert.equal(fs.readFileSync(file, "utf8"), before);
   } finally {
     f.cleanup();
   }
+});
+
+test("frozen bank task counts must match the bank version and difficulty", () => {
+  const f = fixture(), file = path.join(f.state.base, "task-bank.json");
+  try {
+    const variants = [
+      { ...bank, tasks: bank.tasks.filter(t => t.id !== "hard-6") },
+      { ...bank, taskBankVersion: 8 },
+      { ...bank, taskBankVersion: 12 },
+      { ...bank, tasks: bank.tasks.filter(t => t.id !== "easy-6") },
+      { ...bank, tasks: bank.tasks.filter(t => t.id !== "medium-6") },
+      { ...bank, tasks: bank.tasks.map(t => t.id === "hard-6" ? { ...t, difficulty: "medium" } : t) },
+    ];
+    for (const invalid of variants) {
+      fs.writeFileSync(file, JSON.stringify(invalid));
+      assert.throws(() => startAssessment(f.state, {}), /Invalid frozen task bank/);
+      assert.equal(initializationStatus(f.root).initialized, false);
+    }
+  } finally {
+    f.cleanup();
+  }
+});
+
+test("version 9 hard knowledge remains scoreable and its frozen bank is not silently replaced", () => {
+  const legacy=structuredClone(bank);
+  legacy.taskBankVersion=9;
+  legacy.tasks=legacy.tasks.filter(t=>!["easy-6","medium-6"].includes(t.id));
+  const knowledge=legacy.tasks.find(t=>t.difficulty==="hard"&&t.family==="knowledge");
+  const scenarios=["A","B"].map(name=>generateCompact(`synthetic-v9-knowledge-${name}`,"deep"));
+  knowledge.answer={knowledge:{scenarioA:flatten(scenarios[0].answer),scenarioB:flatten(scenarios[1].answer)}};
+  knowledge.prompt=`SCENARIO A\n${scenarios[0].prompt}\nSCENARIO B\n${scenarios[1].prompt}`;
+  knowledge.types={};
+  knowledge.response=Object.fromEntries(Object.entries(knowledge.answer.knowledge).map(([name,fields])=>[name,Object.fromEntries(Object.keys(fields).map(key=>[key,"boolean"]))]));
+  knowledge.promptHash=hash({prompt:knowledge.prompt,types:knowledge.types,response:knowledge.response});
+  const f=fixture(),now=Date.now(),file=path.join(f.state.base,"task-bank.json");
+  try {
+    const start=startAssessment(f.state,{difficulty:"hard",seconds:300},now);
+    const runFile=assessmentPath(f.state,start.runId),record=JSON.parse(fs.readFileSync(runFile));
+    record.taskBankVersion=9;
+    record.privateBankHash=hash(legacy);
+    record.publicBankHash=hash({version:9,tasks:legacy.tasks.map(({id,promptHash,difficulty,family})=>({id,promptHash,difficulty,family}))});
+    record.tasks=legacy.tasks.filter(t=>t.difficulty==="hard").map(({id,family,promptHash})=>({id,family,promptHash}));
+    fs.writeFileSync(runFile,JSON.stringify(record));
+    fs.writeFileSync(file,JSON.stringify(legacy));
+    const before=fs.readFileSync(file,"utf8");
+    assert.equal(initializationStatus(f.root).taskBankVersion,9);
+    assert.equal(initializationStatus(f.root).tasks,16);
+    assert.throws(()=>startAssessment(f.state,{difficulty:"hard"}),/changed its puzzles.*reset.*history is kept/);
+    assert.equal(fs.readFileSync(file,"utf8"),before);
+    assessmentAction(f.state,"answer",{runId:start.runId,taskId:knowledge.id,patch:flatten(knowledge.answer)},()=>now+1);
+    const receipt=assessmentAction(f.state,"finish",{runId:start.runId},()=>now+2);
+    assert.equal(receipt.taskBankVersion,9);
+    assert.equal(receipt.result.tasks.length,6);
+    assert.equal(receipt.result.tasks.find(t=>t.id===knowledge.id).percent,100);
+    assert.equal(receipt.result.percent,100/6);
+    assert.equal(fs.readFileSync(file,"utf8"),before);
+  } finally {f.cleanup();}
 });
 
 test("history destroy deletes every run, keeps the bank, and requires --yes on the CLI", () => {
@@ -421,7 +566,7 @@ test("history destroy deletes every run, keeps the bank, and requires --yes on t
     assert.deepEqual(JSON.parse(destroyed.stdout), { deleted: 2 });
     assert.equal(listHistory(f.root).runs.length, 0);
     assert.ok(fs.existsSync(path.join(f.state.base, "task-bank.json")));
-    assert.equal(startAssessment(f.state, {}).tasks.length, 5);
+    assert.equal(startAssessment(f.state, {}).tasks.length, 6);
     assert.deepEqual(destroyHistory(path.join(f.root, "missing")), { deleted: 0 });
   } finally {
     f.cleanup();

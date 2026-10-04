@@ -51,7 +51,7 @@ const FORMATS = {
 /** A coordination task on a weighted table: each agent observes one of
  * `symbols` symbols, the table lists every constant row plus random others,
  * `rows` in all, with weights 1-3, and the task asks `cases`. */
-export function coordinationTask(seed, { symbols, rows, cases }) {
+export function coordinationTask(seed, { symbols, rows, cases, gap = 0 }) {
   const random = randomSource(seed),
     values = [...Array(symbols).keys()];
   const triples = Array.from({ length: symbols ** 3 }, (_, i) => [
@@ -90,10 +90,10 @@ export function coordinationTask(seed, { symbols, rows, cases }) {
       );
     // Most tables already lack room in a case of the base frontier, so the
     // costlier binding and broadcast cases are solved only for the rest.
-    if (quick.length < cases.length && !hasRoom(solve(quick).answer))
+    if (quick.length < cases.length && !hasRoom(solve(quick).answer, gap))
       continue;
     const task = solve(cases);
-    if (!hasRoom(task.answer)) continue;
+    if (!hasRoom(task.answer, gap)) continue;
     const optima = Object.fromEntries(
       cases.map((name) => [name, numeric(task.answer.coordination[name])]),
     );

@@ -85,7 +85,7 @@ export function formatQuestion(response, taskId) {
   };
 }
 
-// All five tasks in one call, for agents that read everything up front.
+// All tasks in one call, for agents that read everything up front.
 export function formatQuestions(response) {
   if (!Array.isArray(response.questions)) return closedQuestion(response, {});
   return {

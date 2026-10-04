@@ -1,6 +1,6 @@
 # Am I nerfed
 
-A private reasoning assessment for your coding agent. Five tasks, a shared time allowance, and a percentage you can compare with your own previous runs.
+A private reasoning assessment for your coding agent. Six tasks at your chosen difficulty share one time allowance and produce a percentage you can compare with your own previous runs.
 
 Two invocation methods share the same task bank and grader:
 
@@ -82,19 +82,32 @@ Transport commands emit JSON to stdout. `run` prints a short score summary and `
 
 ## Private task bank and scoring
 
-Each baseline has **15 tasks: five easy, five medium, five hard**. A run selects one difficulty and uses all five tasks under one shared clock. Every task contributes 20%; within a task, nonempty reasoning stages are weighted equally and exact answer fields earn partial credit. Missing answers earn zero for their fields.
+Each new baseline has **18 tasks: six easy, six medium, six hard**. A run selects one difficulty and uses every task in that tier under one shared clock. Each task has one sixth of the total weight. Within ordinary tasks, nonempty reasoning stages have equal weight; coordination protocols and checkpoint tasks also award verified partial credit. Missing work earns zero.
 
-| Family            | Easy                                  | Medium                                           | Hard                                                             |
-| ----------------- | ------------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------- |
-| Hats              | Five people, one round                | Six people, two rounds                           | Seven people, two rounds and changed order                       |
-| Card dialogue     | Ten cards                             | Fourteen cards, nested uncertainty               | Eighteen cards, longer dialogue with deeper predicates available |
-| Private knowledge | Fixed bits and private replies        | Swaps, private observations and counterfactuals  | Two independent normal protocols                                 |
-| Belief tracking   | 18 events, direct beliefs             | 40 events, second-order beliefs                  | 75 events, third-order beliefs                                   |
-| Coordination      | Eight histories, deterministic optima | Eight histories, randomization and communication | Eighteen weighted histories and restricted communication         |
+| Family | Easy | Medium | Hard |
+| --- | --- | --- | --- |
+| Hats | Five people, one round | Six people, two rounds | Hats-xl: eight people and changed speaking order |
+| Card dialogue | Ten cards | Fourteen cards, nested uncertainty | — |
+| Private knowledge | Fixed bits and private replies | Swaps, private observations and counterfactuals | Two four-agent, 64-history protocols with causal private replies and evidence certificates |
+| Belief tracking | 18 events, direct beliefs | 40 events, second-order beliefs | — |
+| Coordination | Six weighted histories, two symbols | Eighteen weighted histories, three symbols | Twenty-six weighted histories, four symbols and restricted communication |
+| Three-mode coordination | — | — | Seeded weighted tables; policy witnesses, randomized lower bounds and dual upper bounds |
+| Adversarial diagnosis | — | — | Ten hypotheses, eleven tests, prerequisites and one false reading; graded continuation cases |
+| Program synthesis | One verified three-instruction target | One verified six-instruction target | Fresh four-bit transformation targets; shortest programs of 2/4/6 instructions and a verified 14-instruction final target |
+
+The hard tier replaces its former ordinary hats and tracking-xl tasks with three seeded checkpoint formats, while retaining hats-xl, private knowledge and the existing coordination task. Tables, costs, observation histories and program targets are generated from the private seed. Reference solvers verify each generated instance; the synthesis generator proves minimum length rather than assuming a randomly generated program is minimal.
+
+Easy and medium each add a sixth task using the same four-bit synthesis machine. They ask for one shortest program and accept any optimum, without a lexicographic tie-break. Matching outputs earn up to 20 points, a valid complete program earns 50 more, and minimum length earns the final 30. Their original five task instances remain unchanged for the same seed.
+
+Each checkpoint task has 100 predeclared points. Coordination checks submitted policies and exact rational lower/upper-bound certificates; diagnosis checks feasible hypotheses, continuation costs and optimal tests; synthesis executes candidate programs and separates valid behavior from shortest/canonical solutions. Easier synthesis targets are scored separately from the hard final target. Completed original goals and completed checkpoints remain distinct diagnostics, so partial credit does not imply a complete solution. Answer keys and oracle diagnostics remain private; no grading feedback is shown while a run is active.
+
+Hard private knowledge also uses checkpoint grading. Each of its two independent 64-history scenarios has four agents and three causally linked private replies; every selected question depends on the last reply somewhere in its model, and the fourth agent changes an actual answer. Selection balances changed and unchanged answers, and limits ignored-update shortcuts. It rejects questions globally equivalent to any atom, one `K` or `W` over a signed atom, their negations, or any reply value when spoken. This is a finite semantic filter, not a guarantee against every possible simplification. Counterfactual selection varies by seed; its information cells must differ from their factual counterparts.
+
+Across the task, Boolean claims earn 24 points, valid evidence earns 54, and exact information cells earn 22. Any valid counterexample or opposed-truth witness pair is accepted; true claims require the complete relevant information cell, capped at 12 histories to keep output bounded. The 28 checkpoints permit independent partial submissions under `scenarioA` and `scenarioB`; neither scenario can contribute more than half the score.
 
 The task bank combines the earlier Claude and Codex research. These are **designed difficulty levels, not calibrated difficulty guarantees**. Private seeding changes instances; finite task families can repeat or be learned. The score measures this assessment, not universal intelligence or proof of deliberate nerfing.
 
-Banks remain frozen across software upgrades. To generate a fresh bank with the installed generator:
+Banks remain frozen across software upgrades. Task-bank version 9 changes the hard layout; version 10 introduced hard private-knowledge evidence, version 11 expands it to four agents, version 12 removes the simple-claim and reply equivalences described above, and version 13 adds the sixth easy and medium tasks. Older banks remain readable for history and already-started assessments, but starting a new run with a changed bank requires an explicit reset. To generate a fresh bank with the installed generator:
 
 ```bash
 am-i-nerfed reset --yes
@@ -159,3 +172,15 @@ npm pack
 ```
 
 The package contains the runtime and skill. Local research, prior experiments, generated instances, model outputs and caches are ignored by Git and excluded from the package. Tests use synthetic fixtures and fake CLI processes rather than paid model calls. Updating package version synchronizes skill metadata; packing rejects a mismatch.
+
+
+post-training!
+
+a sanity check
+am i stupid or is the model stupid!
+control what you can
+
+...
+
+Note about execution environment:
+- An agent skill cannot interrupt its host model during reasoning. Briefly state that this is an in-context assessment with an enforced answer deadline, but no guaranteed computation cutoff. Do not promise a hard token budget or that your thinking process will be killed. If the user requires a hard computation cutoff, explain that they need to run the supervised CLI mode (`am-i-nerfed run`) themselves.
