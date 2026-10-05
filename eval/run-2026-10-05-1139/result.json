@@ -1,0 +1,73 @@
+{
+  "generatedAt": "2026-10-05T09:40:27.398Z",
+  "appVersion": "0.11.0",
+  "taskBankVersion": 13,
+  "baselineId": "b24557ac-7628-49d6-8f45-34f19ec43122",
+  "effort": "high",
+  "graceSeconds": 30,
+  "maxOutputTokens": 5000,
+  "systemPrompt": "none",
+  "levels": [
+    {
+      "difficulty": "medium",
+      "seconds": 900
+    }
+  ],
+  "clients": {
+    "claude": "am run claude-ms18"
+  },
+  "rows": [
+    {
+      "model": "claude-sonnet-5-5",
+      "levels": [
+        {
+          "provider": "anthropic",
+          "agent": "claude",
+          "command": "am run claude-ms18",
+          "model": "claude-sonnet-5-5",
+          "difficulty": "medium",
+          "seconds": 900,
+          "percent": 0,
+          "timeLeft": 854,
+          "answers": 3,
+          "budgetChecks": 0,
+          "tokens": {
+            "output": 5806,
+            "reasoning": 5177,
+            "exact": true,
+            "input": 31895
+          },
+          "status": "finished",
+          "reason": "budget",
+          "failure": null,
+          "runId": "5b9c8b0e-9836-43f0-b35c-f5f7921e33af"
+        }
+      ],
+      "average": 0
+    }
+  ],
+  "runs": [
+    {
+      "provider": "anthropic",
+      "agent": "claude",
+      "command": "am run claude-ms18",
+      "model": "claude-sonnet-5-5",
+      "difficulty": "medium",
+      "seconds": 900,
+      "percent": 0,
+      "timeLeft": 854,
+      "answers": 3,
+      "budgetChecks": 0,
+      "tokens": {
+        "output": 5806,
+        "reasoning": 5177,
+        "exact": true,
+        "input": 31895
+      },
+      "status": "finished",
+      "reason": "budget",
+      "failure": null,
+      "runId": "5b9c8b0e-9836-43f0-b35c-f5f7921e33af"
+    }
+  ]
+}

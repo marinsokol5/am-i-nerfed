@@ -1,0 +1,23 @@
+{
+  "graceSeconds": 30,
+  "retries": 1,
+  "maxOutputTokens": 5000,
+  "graceTokens": 1000,
+  "systemPrompt": "none",
+  "effort": "high",
+  "levels": [
+    {
+      "difficulty": "medium",
+      "seconds": 900
+    }
+  ],
+  "providers": {
+    "anthropic": {
+      "agent": "claude",
+      "command": "am run claude-ms18",
+      "models": [
+        "claude-sonnet-5-5"
+      ]
+    }
+  }
+}
