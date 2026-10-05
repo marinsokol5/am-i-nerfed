@@ -183,6 +183,28 @@ process.stdin.on('end',()=>{
   }
 });
 
+test("a Claude run answered by a different model than requested fails", t => {
+  const f = fixture(t);
+  const fake = `#!${process.execPath}
+const cp = require('node:child_process');
+if(process.argv.includes('--version')){console.log('fake-cli');process.exit(0);}
+process.stdin.resume();
+process.stdin.on('end',()=>{
+  const call=(args)=>{const r=cp.spawnSync('./assessment',args,{encoding:'utf8'});if(r.status)throw Error(r.stderr);return JSON.parse(r.stdout);};
+  call(['start']);
+  console.log(JSON.stringify({type:'assistant',message:{id:'m1',model:'fallback-model',content:[{type:'text',text:'x'}]}}));
+  call(['finish']);
+  console.log(JSON.stringify({type:'result',is_error:false}));
+});
+`;
+  fs.writeFileSync(path.join(f.bin, "claude"), fake, { mode: 0o700 });
+  const result = f.exec("run", "--agent", "claude", "--model", "fake-model", "--effort", "medium", "--seconds", "60", "--verbose");
+  assert.equal(result.status, 1);
+  const run = JSON.parse(result.stdout);
+  assert.equal(run.execution.failure, "Client switched to a different model");
+  assert.deepEqual(run.execution.observedModels, ["fallback-model"]);
+});
+
 test("run requires --agent, --model and --effort; init saves no defaults", t => {
   const f = fixture(t);
   assert.equal("defaults" in f.initialized, false);

@@ -800,6 +800,10 @@ export async function runAssessment(options) {
     }
     if (execution.observedEfforts.some((value) => value !== effort))
       execution.failure = "Client reported a different reasoning effort";
+    // Claude Code can silently switch to another model, for example after a
+    // safety classifier stops a response; that run measures a different model.
+    if (agent === "claude" && execution.observedModels.some((value) => value !== model))
+      execution.failure = "Client switched to a different model";
     if (!fs.existsSync(runFile)) {
       execution.failure ??= "Client ended before starting an assessment";
       return withLock((root) => {
