@@ -1,0 +1,73 @@
+{
+  "generatedAt": "2026-10-05T09:52:18.190Z",
+  "appVersion": "0.11.0",
+  "taskBankVersion": 13,
+  "baselineId": "b24557ac-7628-49d6-8f45-34f19ec43122",
+  "effort": "high",
+  "graceSeconds": 30,
+  "maxOutputTokens": 5000,
+  "systemPrompt": "none",
+  "levels": [
+    {
+      "difficulty": "medium",
+      "seconds": 900
+    }
+  ],
+  "clients": {
+    "claude": "node /Users/marinsokol/projects/hard-challenge-skill/eval/api-client.js --key-file /private/tmp/claude-501/-Users-marinsokol-projects-hard-challenge-skill/dfeef96e-8a85-482a-a822-1f2a3eecee9b/scratchpad/anthropic-api-key"
+  },
+  "rows": [
+    {
+      "model": "claude-sonnet-5-5",
+      "levels": [
+        {
+          "provider": "anthropic-api",
+          "agent": "claude",
+          "command": "node /Users/marinsokol/projects/hard-challenge-skill/eval/api-client.js --key-file /private/tmp/claude-501/-Users-marinsokol-projects-hard-challenge-skill/dfeef96e-8a85-482a-a822-1f2a3eecee9b/scratchpad/anthropic-api-key",
+          "model": "claude-sonnet-5-5",
+          "difficulty": "medium",
+          "seconds": 900,
+          "percent": 55.416666666666664,
+          "timeLeft": 859,
+          "answers": 6,
+          "budgetChecks": 0,
+          "tokens": {
+            "output": 4780,
+            "reasoning": 2779,
+            "exact": true,
+            "input": 46815
+          },
+          "status": "finished",
+          "reason": "finished",
+          "failure": null,
+          "runId": "8a60b578-dd0c-421b-9808-578a280137e1"
+        }
+      ],
+      "average": 55.416666666666664
+    }
+  ],
+  "runs": [
+    {
+      "provider": "anthropic-api",
+      "agent": "claude",
+      "command": "node /Users/marinsokol/projects/hard-challenge-skill/eval/api-client.js --key-file /private/tmp/claude-501/-Users-marinsokol-projects-hard-challenge-skill/dfeef96e-8a85-482a-a822-1f2a3eecee9b/scratchpad/anthropic-api-key",
+      "model": "claude-sonnet-5-5",
+      "difficulty": "medium",
+      "seconds": 900,
+      "percent": 55.416666666666664,
+      "timeLeft": 859,
+      "answers": 6,
+      "budgetChecks": 0,
+      "tokens": {
+        "output": 4780,
+        "reasoning": 2779,
+        "exact": true,
+        "input": 46815
+      },
+      "status": "finished",
+      "reason": "finished",
+      "failure": null,
+      "runId": "8a60b578-dd0c-421b-9808-578a280137e1"
+    }
+  ]
+}
