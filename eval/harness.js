@@ -249,7 +249,20 @@ async function sweep(config, options) {
   providers: Object.fromEntries(Object.entries(config.providers).map(([name, provider]) =>
     [name, { ...provider, models: provider.models.filter((model) => runs.some((run) => run.model === model)) }])
     .filter(([, provider]) => provider.models.length)) };
-  fs.writeFileSync(path.join(dir, "config.json"), JSON.stringify(planned, null, 2) + "\n");
+  // A sweep continued in an existing directory keeps the models and levels
+  // already run there, so its results cover both parts.
+  const saved = path.join(dir, "config.json");
+  if (fs.existsSync(saved)) {
+    const previous = loadConfig(saved);
+    for (const level of previous.levels)
+      if (!planned.levels.some((l) => l.difficulty === level.difficulty && l.seconds === level.seconds))
+        planned.levels.push(level);
+    for (const [name, provider] of Object.entries(previous.providers)) {
+      const current = (planned.providers[name] ??= { ...provider, models: [] });
+      current.models = [...new Set([...provider.models, ...current.models])];
+    }
+  }
+  fs.writeFileSync(saved, JSON.stringify(planned, null, 2) + "\n");
   config = planned;
   let stopping = false;
   process.on("SIGINT", () => { stopping = true; });
