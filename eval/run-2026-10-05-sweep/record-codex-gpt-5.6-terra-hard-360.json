@@ -1,0 +1,583 @@
+{
+  "harness": {
+    "run": {
+      "provider": "openai",
+      "agent": "codex",
+      "command": null,
+      "model": "gpt-5.6-terra",
+      "difficulty": "hard",
+      "seconds": 360
+    },
+    "attempt": 1,
+    "startedAt": "2026-10-05T11:18:29.182Z",
+    "exitCode": 0,
+    "progress": [
+      "start: 360s remaining",
+      "questions: 348s remaining",
+      "answer: 312s remaining",
+      "answer: 249s remaining",
+      "answer: 218s remaining",
+      "answer: 189s remaining",
+      "answer: 167s remaining",
+      "answer: 134s remaining",
+      "answer: 31s remaining",
+      "answer: 17s remaining"
+    ],
+    "command": "codex",
+    "effort": "high",
+    "graceSeconds": 30,
+    "maxOutputTokens": null,
+    "graceTokens": 1000,
+    "systemPrompt": "none"
+  },
+  "run": {
+    "runId": "baa04c3d-ef65-49bc-be7c-2c72b0e11aa3",
+    "baselineId": "b24557ac-7628-49d6-8f45-34f19ec43122",
+    "appVersion": "0.11.0",
+    "taskBankVersion": 13,
+    "protocolVersion": 1,
+    "taskBankHash": "09f038c9c773850a7e95f4f9f7c1e87e58b40dfbd31c34140a121cedf25c6b09",
+    "difficulty": "hard",
+    "invocation": "cli",
+    "agent": "codex",
+    "provider": "openai",
+    "model": "gpt-5.6-terra",
+    "effort": "high",
+    "systemPrompt": "none",
+    "metadataSource": "configured",
+    "clockEnforcement": "process-watchdog",
+    "status": "expired",
+    "clock": {
+      "startedAt": "2026-10-05T11:18:29.251Z",
+      "deadlineAt": "2026-10-05T11:24:29.251Z",
+      "durationSeconds": 360,
+      "elapsedSeconds": 360,
+      "remainingSeconds": 0
+    },
+    "finishedAt": "2026-10-05T11:24:29.251Z",
+    "result": {
+      "percent": 15.756410256410257,
+      "taskWeightPercent": 16.666666666666668,
+      "tasks": [
+        {
+          "id": "hard-1",
+          "family": "hats-xl",
+          "percent": 35,
+          "stages": {
+            "knowledge": {
+              "correct": 7,
+              "total": 20,
+              "percent": 35
+            }
+          },
+          "submissionStatus": "scored_json",
+          "allRequiredFieldsCorrect": false,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "hard-2",
+          "family": "knowledge",
+          "percent": 12,
+          "stages": {
+            "checkpoints": {
+              "correct": 12,
+              "total": 100,
+              "percent": 12
+            }
+          },
+          "submissionStatus": "partial_submission",
+          "allRequiredFieldsCorrect": false,
+          "stageWeightPercent": 100,
+          "checkpointProgress": {
+            "completed": 6,
+            "total": 28,
+            "checkpoints": [
+              {
+                "id": "scenarioA.q1",
+                "earned": 0,
+                "max": 2
+              },
+              {
+                "id": "scenarioA.q1Evidence",
+                "earned": 0,
+                "max": 4.5
+              },
+              {
+                "id": "scenarioA.q2",
+                "earned": 0,
+                "max": 2
+              },
+              {
+                "id": "scenarioA.q2Evidence",
+                "earned": 0,
+                "max": 4.5
+              },
+              {
+                "id": "scenarioA.q3",
+                "earned": 2,
+                "max": 2
+              },
+              {
+                "id": "scenarioA.q3Evidence",
+                "earned": 0,
+                "max": 4.5
+              },
+              {
+                "id": "scenarioA.q4",
+                "earned": 2,
+                "max": 2
+              },
+              {
+                "id": "scenarioA.q4Evidence",
+                "earned": 0,
+                "max": 4.5
+              },
+              {
+                "id": "scenarioA.q5",
+                "earned": 0,
+                "max": 2
+              },
+              {
+                "id": "scenarioA.q5Evidence",
+                "earned": 0,
+                "max": 4.5
+              },
+              {
+                "id": "scenarioA.q6",
+                "earned": 2,
+                "max": 2
+              },
+              {
+                "id": "scenarioA.q6Evidence",
+                "earned": 0,
+                "max": 4.5
+              },
+              {
+                "id": "scenarioA.cell1",
+                "earned": 0,
+                "max": 5.5
+              },
+              {
+                "id": "scenarioA.cell2",
+                "earned": 0,
+                "max": 5.5
+              },
+              {
+                "id": "scenarioB.q1",
+                "earned": 0,
+                "max": 2
+              },
+              {
+                "id": "scenarioB.q1Evidence",
+                "earned": 0,
+                "max": 4.5
+              },
+              {
+                "id": "scenarioB.q2",
+                "earned": 2,
+                "max": 2
+              },
+              {
+                "id": "scenarioB.q2Evidence",
+                "earned": 0,
+                "max": 4.5
+              },
+              {
+                "id": "scenarioB.q3",
+                "earned": 2,
+                "max": 2
+              },
+              {
+                "id": "scenarioB.q3Evidence",
+                "earned": 0,
+                "max": 4.5
+              },
+              {
+                "id": "scenarioB.q4",
+                "earned": 2,
+                "max": 2
+              },
+              {
+                "id": "scenarioB.q4Evidence",
+                "earned": 0,
+                "max": 4.5
+              },
+              {
+                "id": "scenarioB.q5",
+                "earned": 0,
+                "max": 2
+              },
+              {
+                "id": "scenarioB.q5Evidence",
+                "earned": 0,
+                "max": 4.5
+              },
+              {
+                "id": "scenarioB.q6",
+                "earned": 0,
+                "max": 2
+              },
+              {
+                "id": "scenarioB.q6Evidence",
+                "earned": 0,
+                "max": 4.5
+              },
+              {
+                "id": "scenarioB.cell1",
+                "earned": 0,
+                "max": 5.5
+              },
+              {
+                "id": "scenarioB.cell2",
+                "earned": 0,
+                "max": 5.5
+              }
+            ]
+          },
+          "originalGoalComplete": false
+        },
+        {
+          "id": "hard-3",
+          "family": "coordination",
+          "percent": 0,
+          "stages": {
+            "coordination": {
+              "correct": 0,
+              "total": 6,
+              "percent": 0
+            }
+          },
+          "submissionStatus": "scored_json",
+          "allRequiredFieldsCorrect": false,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "hard-4",
+          "family": "coordination-three-mode",
+          "percent": 1.5384615384615388,
+          "stages": {
+            "checkpoints": {
+              "correct": 1.5384615384615385,
+              "total": 100,
+              "percent": 1.5384615384615388
+            }
+          },
+          "submissionStatus": "partial_submission",
+          "allRequiredFieldsCorrect": false,
+          "stageWeightPercent": 100,
+          "checkpointProgress": {
+            "completed": 0,
+            "total": 5,
+            "checkpoints": [
+              {
+                "id": "policy-scores",
+                "earned": 0,
+                "max": 10
+              },
+              {
+                "id": "pure-witness",
+                "earned": 1.5384615384615385,
+                "max": 20
+              },
+              {
+                "id": "mixed-lower-bound",
+                "earned": 0,
+                "max": 30
+              },
+              {
+                "id": "mixed-upper-bound",
+                "earned": 0,
+                "max": 20
+              },
+              {
+                "id": "matching-certificates",
+                "earned": 0,
+                "max": 20
+              }
+            ]
+          },
+          "originalGoalComplete": false
+        },
+        {
+          "id": "hard-5",
+          "family": "adversarial-diagnosis",
+          "percent": 30,
+          "stages": {
+            "checkpoints": {
+              "correct": 30,
+              "total": 100,
+              "percent": 30
+            }
+          },
+          "submissionStatus": "partial_submission",
+          "allRequiredFieldsCorrect": false,
+          "stageWeightPercent": 100,
+          "checkpointProgress": {
+            "completed": 11,
+            "total": 17,
+            "checkpoints": [
+              {
+                "id": "aClean",
+                "earned": 2,
+                "max": 2
+              },
+              {
+                "id": "aSpent",
+                "earned": 2,
+                "max": 2
+              },
+              {
+                "id": "aLegal",
+                "earned": 2,
+                "max": 2
+              },
+              {
+                "id": "aCost",
+                "earned": 6,
+                "max": 6
+              },
+              {
+                "id": "aFirstTests",
+                "earned": 6,
+                "max": 6
+              },
+              {
+                "id": "bClean",
+                "earned": 2,
+                "max": 2
+              },
+              {
+                "id": "bSpent",
+                "earned": 2,
+                "max": 2
+              },
+              {
+                "id": "bLegal",
+                "earned": 2,
+                "max": 2
+              },
+              {
+                "id": "bCost",
+                "earned": 0,
+                "max": 6
+              },
+              {
+                "id": "bFirstTests",
+                "earned": 0,
+                "max": 6
+              },
+              {
+                "id": "cClean",
+                "earned": 2,
+                "max": 2
+              },
+              {
+                "id": "cSpent",
+                "earned": 2,
+                "max": 2
+              },
+              {
+                "id": "cLegal",
+                "earned": 2,
+                "max": 2
+              },
+              {
+                "id": "cCost",
+                "earned": 0,
+                "max": 6
+              },
+              {
+                "id": "cFirstTests",
+                "earned": 0,
+                "max": 6
+              },
+              {
+                "id": "cost",
+                "earned": 0,
+                "max": 26
+              },
+              {
+                "id": "firstTests",
+                "earned": 0,
+                "max": 20
+              }
+            ]
+          },
+          "originalGoalComplete": false
+        },
+        {
+          "id": "hard-6",
+          "family": "reversible-synthesis",
+          "percent": 16,
+          "stages": {
+            "checkpoints": {
+              "correct": 16,
+              "total": 100,
+              "percent": 16
+            }
+          },
+          "submissionStatus": "partial_submission",
+          "allRequiredFieldsCorrect": false,
+          "stageWeightPercent": 100,
+          "checkpointProgress": {
+            "completed": 3,
+            "total": 11,
+            "checkpoints": [
+              {
+                "id": "warmup2-valid",
+                "earned": 3,
+                "max": 3
+              },
+              {
+                "id": "warmup2-shortest",
+                "earned": 3,
+                "max": 3
+              },
+              {
+                "id": "warmup4-valid",
+                "earned": 0,
+                "max": 5
+              },
+              {
+                "id": "warmup4-shortest",
+                "earned": 0,
+                "max": 5
+              },
+              {
+                "id": "warmup6-valid",
+                "earned": 0,
+                "max": 7
+              },
+              {
+                "id": "warmup6-shortest",
+                "earned": 0,
+                "max": 7
+              },
+              {
+                "id": "permutation-invariant",
+                "earned": 10,
+                "max": 10
+              },
+              {
+                "id": "original-inputs",
+                "earned": 0,
+                "max": 10
+              },
+              {
+                "id": "original-valid",
+                "earned": 0,
+                "max": 25
+              },
+              {
+                "id": "original-shortest",
+                "earned": 0,
+                "max": 15
+              },
+              {
+                "id": "original-canonical",
+                "earned": 0,
+                "max": 10
+              }
+            ]
+          },
+          "originalGoalComplete": false
+        }
+      ]
+    },
+    "execution": {
+      "exitCode": null,
+      "signal": "SIGTERM",
+      "reason": "deadline",
+      "failure": null,
+      "cleanupFailure": null,
+      "usage": {
+        "input_tokens": 172773,
+        "cached_input_tokens": 143872,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 8914,
+        "reasoning_output_tokens": 7381
+      },
+      "streamUsage": null,
+      "outputTokensSeen": null,
+      "terminal": true,
+      "threadId": "01a10bc9-60a1-79f2-a4aa-f8370fd3a703",
+      "stoppedAt": 1791199469255,
+      "observedModels": [],
+      "observedEfforts": [],
+      "wallSeconds": 363.075,
+      "clientVersion": "codex-cli 0.160.0",
+      "graceSeconds": 30,
+      "maxOutputTokens": null,
+      "graceTokens": null,
+      "commandCounts": {
+        "start": 1,
+        "questions": 1,
+        "answer": 8
+      },
+      "nativeEvidence": {
+        "threadId": "01a10bc9-60a1-79f2-a4aa-f8370fd3a703",
+        "models": [
+          "gpt-5.6-terra"
+        ],
+        "efforts": [
+          "high"
+        ],
+        "instructionFileMessages": 0,
+        "baseInstructions": "Follow the user's instructions.",
+        "reportedTokenUsage": {
+          "input_tokens": 172773,
+          "cached_input_tokens": 143872,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 8914,
+          "reasoning_output_tokens": 7381,
+          "total_tokens": 181687
+        }
+      }
+    },
+    "tasks": [
+      {
+        "id": "hard-1",
+        "family": "hats-xl",
+        "promptHash": "6d2c1f5303e80a5eb60f90f7bfb6685ca9136c8ea9e5e0d25f2c44fa3fa7a265",
+        "submitted": true,
+        "filledFields": 20
+      },
+      {
+        "id": "hard-2",
+        "family": "knowledge",
+        "promptHash": "e5b7dde5222008eea39f4ddc4f80b9cbc926fc16b16d34a82c8307dbebe2d961",
+        "submitted": true,
+        "filledFields": 12
+      },
+      {
+        "id": "hard-3",
+        "family": "coordination",
+        "promptHash": "e57c49ec76df0aaab68f52446858d7a22c7755b99b93ae7bd9d61c094d7e6ea8",
+        "submitted": true,
+        "filledFields": 28
+      },
+      {
+        "id": "hard-4",
+        "family": "coordination-three-mode",
+        "promptHash": "9f89ad4f2d5fa436db6b44d5365f2e62eec72e7c5f4b1ba01469ea842af72b52",
+        "submitted": true,
+        "filledFields": 5
+      },
+      {
+        "id": "hard-5",
+        "family": "adversarial-diagnosis",
+        "promptHash": "7858b1d97f5080f156c74b599117fb4967fe3c9c9a04cb40e8e5e260e38fca4c",
+        "submitted": true,
+        "filledFields": 32
+      },
+      {
+        "id": "hard-6",
+        "family": "reversible-synthesis",
+        "promptHash": "41618bdd0febac5df38e653c66a628296d29b3a3ff7d14b27ecf43ce4ae25a25",
+        "submitted": true,
+        "filledFields": 3
+      }
+    ]
+  },
+  "error": null
+}

@@ -1,0 +1,253 @@
+{
+  "harness": {
+    "run": {
+      "provider": "anthropic-ms55",
+      "agent": "claude",
+      "command": "am run claude-ms55",
+      "model": "claude-opus-4-6",
+      "difficulty": "medium",
+      "seconds": 180
+    },
+    "attempt": 1,
+    "startedAt": "2026-10-05T11:56:55.104Z",
+    "exitCode": 0,
+    "progress": [
+      "start: 180s remaining",
+      "questions: 173s remaining"
+    ],
+    "command": "am run claude-ms55",
+    "effort": "high",
+    "graceSeconds": 30,
+    "maxOutputTokens": null,
+    "graceTokens": 1000,
+    "systemPrompt": "none"
+  },
+  "run": {
+    "runId": "fc2693a5-2d4d-4e60-9df0-d3780202343f",
+    "baselineId": "b24557ac-7628-49d6-8f45-34f19ec43122",
+    "appVersion": "0.11.0",
+    "taskBankVersion": 13,
+    "protocolVersion": 1,
+    "taskBankHash": "09f038c9c773850a7e95f4f9f7c1e87e58b40dfbd31c34140a121cedf25c6b09",
+    "difficulty": "medium",
+    "invocation": "cli",
+    "agent": "claude",
+    "provider": "anthropic",
+    "model": "claude-opus-4-6",
+    "effort": "high",
+    "systemPrompt": "none",
+    "metadataSource": "configured",
+    "clockEnforcement": "process-watchdog",
+    "status": "expired",
+    "clock": {
+      "startedAt": "2026-10-05T11:56:55.193Z",
+      "deadlineAt": "2026-10-05T11:59:55.193Z",
+      "durationSeconds": 180,
+      "elapsedSeconds": 180,
+      "remainingSeconds": 0
+    },
+    "finishedAt": "2026-10-05T11:59:55.193Z",
+    "result": {
+      "percent": 0,
+      "taskWeightPercent": 16.666666666666668,
+      "tasks": [
+        {
+          "id": "medium-1",
+          "family": "hats",
+          "percent": 0,
+          "stages": {
+            "knowledge": {
+              "correct": 0,
+              "total": 13,
+              "percent": 0
+            }
+          },
+          "submissionStatus": "partial_submission",
+          "allRequiredFieldsCorrect": false,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "medium-2",
+          "family": "cards",
+          "percent": 0,
+          "stages": {
+            "knowledge": {
+              "correct": 0,
+              "total": 7,
+              "percent": 0
+            }
+          },
+          "submissionStatus": "partial_submission",
+          "allRequiredFieldsCorrect": false,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "medium-3",
+          "family": "knowledge",
+          "percent": 0,
+          "stages": {
+            "knowledge": {
+              "correct": 0,
+              "total": 10,
+              "percent": 0
+            },
+            "counterfactual": {
+              "correct": 0,
+              "total": 4,
+              "percent": 0
+            }
+          },
+          "submissionStatus": "partial_submission",
+          "allRequiredFieldsCorrect": false,
+          "stageWeightPercent": 50
+        },
+        {
+          "id": "medium-4",
+          "family": "tracking",
+          "percent": 0,
+          "stages": {
+            "knowledge": {
+              "correct": 0,
+              "total": 7,
+              "percent": 0
+            }
+          },
+          "submissionStatus": "partial_submission",
+          "allRequiredFieldsCorrect": false,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "medium-5",
+          "family": "coordination",
+          "percent": 0,
+          "stages": {
+            "coordination": {
+              "correct": 0,
+              "total": 6,
+              "percent": 0
+            }
+          },
+          "submissionStatus": "partial_submission",
+          "allRequiredFieldsCorrect": false,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "medium-6",
+          "family": "reversible-synthesis",
+          "percent": 0,
+          "stages": {
+            "checkpoints": {
+              "correct": 0,
+              "total": 100,
+              "percent": 0
+            }
+          },
+          "submissionStatus": "partial_submission",
+          "allRequiredFieldsCorrect": false,
+          "stageWeightPercent": 100,
+          "checkpointProgress": {
+            "completed": 0,
+            "total": 3,
+            "checkpoints": [
+              {
+                "id": "inputs",
+                "earned": 0,
+                "max": 20
+              },
+              {
+                "id": "valid",
+                "earned": 0,
+                "max": 50
+              },
+              {
+                "id": "shortest",
+                "earned": 0,
+                "max": 30
+              }
+            ]
+          },
+          "originalGoalComplete": false
+        }
+      ]
+    },
+    "execution": {
+      "exitCode": null,
+      "signal": "SIGKILL",
+      "reason": "deadline",
+      "failure": null,
+      "cleanupFailure": null,
+      "usage": null,
+      "streamUsage": {
+        "responses": 2,
+        "input_tokens": 3,
+        "cache_creation_input_tokens": 4872,
+        "cache_read_input_tokens": 4651,
+        "estimated_output_tokens": 11770,
+        "estimated_reasoning_tokens": 11619,
+        "exact": false
+      },
+      "outputTokensSeen": null,
+      "terminal": false,
+      "threadId": null,
+      "stoppedAt": 1791201595204,
+      "observedModels": [
+        "claude-opus-4-6"
+      ],
+      "observedEfforts": [],
+      "wallSeconds": 210.438,
+      "clientVersion": "2.1.289 (Claude Code)",
+      "graceSeconds": 30,
+      "maxOutputTokens": null,
+      "graceTokens": null,
+      "commandCounts": {
+        "start": 1,
+        "questions": 1
+      }
+    },
+    "tasks": [
+      {
+        "id": "medium-1",
+        "family": "hats",
+        "promptHash": "3be2ffde50a6fe06fb6781a28c92ecaf074d231e6d2c542eb753e327c78a0174",
+        "submitted": false,
+        "filledFields": 0
+      },
+      {
+        "id": "medium-2",
+        "family": "cards",
+        "promptHash": "e38acd284e9dc3aba3a6070a9535aa7cb8cfb8a8aa1c4870c60a39495429e11e",
+        "submitted": false,
+        "filledFields": 0
+      },
+      {
+        "id": "medium-3",
+        "family": "knowledge",
+        "promptHash": "fd0a4e29989c207b2f4ca4b43abc60e69883826517a84fe7d5f4ad8201649a66",
+        "submitted": false,
+        "filledFields": 0
+      },
+      {
+        "id": "medium-4",
+        "family": "tracking",
+        "promptHash": "c8eaf2ae348d18b0a5f4ef5615dccafb8f3c9cd4397d73576f6cbdcbcd2e70df",
+        "submitted": false,
+        "filledFields": 0
+      },
+      {
+        "id": "medium-5",
+        "family": "coordination",
+        "promptHash": "0bc3b7b0bb5cde96220c136c0cc267dd3242fccd54125feab02dc7b2c3a8732c",
+        "submitted": false,
+        "filledFields": 0
+      },
+      {
+        "id": "medium-6",
+        "family": "reversible-synthesis",
+        "promptHash": "0baf6bcbccc94f005ab5c22439fa8a2a8e10def76238166246ab768688dd7e06",
+        "submitted": false,
+        "filledFields": 0
+      }
+    ]
+  },
+  "error": null
+}

@@ -1,0 +1,297 @@
+{
+  "harness": {
+    "run": {
+      "provider": "anthropic-ms55",
+      "agent": "claude",
+      "command": "am run claude-ms55",
+      "model": "claude-fable-5-1",
+      "difficulty": "medium",
+      "seconds": 180
+    },
+    "attempt": 1,
+    "startedAt": "2026-10-05T11:47:42.925Z",
+    "exitCode": 0,
+    "progress": [
+      "start: 180s remaining",
+      "questions: 175s remaining",
+      "answer: 164s remaining",
+      "answer: 162s remaining",
+      "answer: 142s remaining",
+      "answer: 141s remaining",
+      "answer: 123s remaining",
+      "answer: 102s remaining",
+      "answer: 101s remaining",
+      "answer: 86s remaining",
+      "answer: 76s remaining"
+    ],
+    "command": "am run claude-ms55",
+    "effort": "high",
+    "graceSeconds": 30,
+    "maxOutputTokens": null,
+    "graceTokens": 1000,
+    "systemPrompt": "none"
+  },
+  "run": {
+    "runId": "ada0ca03-db8e-4fbf-95de-9e90af90be5b",
+    "baselineId": "b24557ac-7628-49d6-8f45-34f19ec43122",
+    "appVersion": "0.11.0",
+    "taskBankVersion": 13,
+    "protocolVersion": 1,
+    "taskBankHash": "09f038c9c773850a7e95f4f9f7c1e87e58b40dfbd31c34140a121cedf25c6b09",
+    "difficulty": "medium",
+    "invocation": "cli",
+    "agent": "claude",
+    "provider": "anthropic",
+    "model": "claude-fable-5-1",
+    "effort": "high",
+    "systemPrompt": "none",
+    "metadataSource": "configured",
+    "clockEnforcement": "process-watchdog",
+    "status": "finished",
+    "clock": {
+      "startedAt": "2026-10-05T11:47:43.000Z",
+      "deadlineAt": "2026-10-05T11:50:43.000Z",
+      "durationSeconds": 180,
+      "elapsedSeconds": 127,
+      "remainingSeconds": 0
+    },
+    "finishedAt": "2026-10-05T11:49:50.966Z",
+    "result": {
+      "percent": 80.44084570400359,
+      "taskWeightPercent": 16.666666666666668,
+      "tasks": [
+        {
+          "id": "medium-1",
+          "family": "hats",
+          "percent": 100,
+          "stages": {
+            "knowledge": {
+              "correct": 13,
+              "total": 13,
+              "percent": 100
+            }
+          },
+          "submissionStatus": "scored_json",
+          "allRequiredFieldsCorrect": true,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "medium-2",
+          "family": "cards",
+          "percent": 100,
+          "stages": {
+            "knowledge": {
+              "correct": 7,
+              "total": 7,
+              "percent": 100
+            }
+          },
+          "submissionStatus": "scored_json",
+          "allRequiredFieldsCorrect": true,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "medium-3",
+          "family": "knowledge",
+          "percent": 100,
+          "stages": {
+            "knowledge": {
+              "correct": 10,
+              "total": 10,
+              "percent": 100
+            },
+            "counterfactual": {
+              "correct": 4,
+              "total": 4,
+              "percent": 100
+            }
+          },
+          "submissionStatus": "scored_json",
+          "allRequiredFieldsCorrect": true,
+          "stageWeightPercent": 50
+        },
+        {
+          "id": "medium-4",
+          "family": "tracking",
+          "percent": 100,
+          "stages": {
+            "knowledge": {
+              "correct": 7,
+              "total": 7,
+              "percent": 100
+            }
+          },
+          "submissionStatus": "scored_json",
+          "allRequiredFieldsCorrect": true,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "medium-5",
+          "family": "coordination",
+          "percent": 76.49122807017542,
+          "stages": {
+            "coordination": {
+              "correct": 4.5894736842105255,
+              "total": 6,
+              "percent": 76.49122807017542
+            }
+          },
+          "submissionStatus": "scored_json",
+          "allRequiredFieldsCorrect": false,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "medium-6",
+          "family": "reversible-synthesis",
+          "percent": 6.153846153846155,
+          "stages": {
+            "checkpoints": {
+              "correct": 6.153846153846154,
+              "total": 100,
+              "percent": 6.153846153846155
+            }
+          },
+          "submissionStatus": "scored_json",
+          "allRequiredFieldsCorrect": false,
+          "stageWeightPercent": 100,
+          "checkpointProgress": {
+            "completed": 0,
+            "total": 3,
+            "checkpoints": [
+              {
+                "id": "inputs",
+                "earned": 6.153846153846154,
+                "max": 20
+              },
+              {
+                "id": "valid",
+                "earned": 0,
+                "max": 50
+              },
+              {
+                "id": "shortest",
+                "earned": 0,
+                "max": 30
+              }
+            ]
+          },
+          "originalGoalComplete": false
+        }
+      ]
+    },
+    "execution": {
+      "exitCode": null,
+      "signal": "SIGKILL",
+      "reason": "finished",
+      "failure": null,
+      "cleanupFailure": null,
+      "usage": {
+        "input_tokens": 22,
+        "cache_creation_input_tokens": 19168,
+        "cache_read_input_tokens": 123683,
+        "output_tokens": 11613,
+        "output_tokens_details": {
+          "thinking_tokens": 9479
+        },
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 19168,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 2,
+            "output_tokens": 1014,
+            "cache_read_input_tokens": 19701,
+            "cache_creation_input_tokens": 995,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 995
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "fallback_credit": null
+      },
+      "streamUsage": {
+        "responses": 11,
+        "input_tokens": 22,
+        "cache_creation_input_tokens": 19168,
+        "cache_read_input_tokens": 123683,
+        "estimated_output_tokens": 11613,
+        "estimated_reasoning_tokens": 9479,
+        "exact": true
+      },
+      "outputTokensSeen": null,
+      "terminal": true,
+      "threadId": null,
+      "stoppedAt": 1791200990966,
+      "observedModels": [
+        "claude-fable-5-1"
+      ],
+      "observedEfforts": [],
+      "wallSeconds": 128.397,
+      "clientVersion": "2.1.289 (Claude Code)",
+      "graceSeconds": 30,
+      "maxOutputTokens": null,
+      "graceTokens": null,
+      "commandCounts": {
+        "start": 1,
+        "questions": 1,
+        "answer": 9,
+        "budget": 1
+      }
+    },
+    "tasks": [
+      {
+        "id": "medium-1",
+        "family": "hats",
+        "promptHash": "3be2ffde50a6fe06fb6781a28c92ecaf074d231e6d2c542eb753e327c78a0174",
+        "submitted": true,
+        "filledFields": 13
+      },
+      {
+        "id": "medium-2",
+        "family": "cards",
+        "promptHash": "e38acd284e9dc3aba3a6070a9535aa7cb8cfb8a8aa1c4870c60a39495429e11e",
+        "submitted": true,
+        "filledFields": 7
+      },
+      {
+        "id": "medium-3",
+        "family": "knowledge",
+        "promptHash": "fd0a4e29989c207b2f4ca4b43abc60e69883826517a84fe7d5f4ad8201649a66",
+        "submitted": true,
+        "filledFields": 14
+      },
+      {
+        "id": "medium-4",
+        "family": "tracking",
+        "promptHash": "c8eaf2ae348d18b0a5f4ef5615dccafb8f3c9cd4397d73576f6cbdcbcd2e70df",
+        "submitted": true,
+        "filledFields": 7
+      },
+      {
+        "id": "medium-5",
+        "family": "coordination",
+        "promptHash": "0bc3b7b0bb5cde96220c136c0cc267dd3242fccd54125feab02dc7b2c3a8732c",
+        "submitted": true,
+        "filledFields": 28
+      },
+      {
+        "id": "medium-6",
+        "family": "reversible-synthesis",
+        "promptHash": "0baf6bcbccc94f005ab5c22439fa8a2a8e10def76238166246ab768688dd7e06",
+        "submitted": true,
+        "filledFields": 1
+      }
+    ]
+  },
+  "error": null
+}

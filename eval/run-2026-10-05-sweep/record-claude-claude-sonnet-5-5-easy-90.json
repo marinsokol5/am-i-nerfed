@@ -1,0 +1,289 @@
+{
+  "harness": {
+    "run": {
+      "provider": "anthropic",
+      "agent": "claude",
+      "command": "am run claude-ms18",
+      "model": "claude-sonnet-5-5",
+      "difficulty": "easy",
+      "seconds": 90
+    },
+    "attempt": 1,
+    "startedAt": "2026-10-05T10:19:31.296Z",
+    "exitCode": 0,
+    "progress": [
+      "start: 90s remaining",
+      "questions: 87s remaining",
+      "answer: 66s remaining",
+      "answer: 66s remaining",
+      "answer: 65s remaining",
+      "answer: 65s remaining",
+      "answer: 44s remaining",
+      "answer: 37s remaining"
+    ],
+    "command": "am run claude-ms18",
+    "effort": "high",
+    "graceSeconds": 30,
+    "maxOutputTokens": null,
+    "graceTokens": 1000,
+    "systemPrompt": "none"
+  },
+  "run": {
+    "runId": "5a0222da-f5d4-423f-afa5-d782eb8e7019",
+    "baselineId": "b24557ac-7628-49d6-8f45-34f19ec43122",
+    "appVersion": "0.11.0",
+    "taskBankVersion": 13,
+    "protocolVersion": 1,
+    "taskBankHash": "09f038c9c773850a7e95f4f9f7c1e87e58b40dfbd31c34140a121cedf25c6b09",
+    "difficulty": "easy",
+    "invocation": "cli",
+    "agent": "claude",
+    "provider": "anthropic",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "systemPrompt": "none",
+    "metadataSource": "configured",
+    "clockEnforcement": "process-watchdog",
+    "status": "finished",
+    "clock": {
+      "startedAt": "2026-10-05T10:19:31.367Z",
+      "deadlineAt": "2026-10-05T10:21:01.367Z",
+      "durationSeconds": 90,
+      "elapsedSeconds": 65,
+      "remainingSeconds": 0
+    },
+    "finishedAt": "2026-10-05T10:20:36.614Z",
+    "result": {
+      "percent": 80.55555555555556,
+      "taskWeightPercent": 16.666666666666668,
+      "tasks": [
+        {
+          "id": "easy-1",
+          "family": "hats",
+          "percent": 83.33333333333333,
+          "stages": {
+            "knowledge": {
+              "correct": 5,
+              "total": 6,
+              "percent": 83.33333333333333
+            }
+          },
+          "submissionStatus": "scored_json",
+          "allRequiredFieldsCorrect": false,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "easy-2",
+          "family": "cards",
+          "percent": 100,
+          "stages": {
+            "knowledge": {
+              "correct": 4,
+              "total": 4,
+              "percent": 100
+            }
+          },
+          "submissionStatus": "scored_json",
+          "allRequiredFieldsCorrect": true,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "easy-3",
+          "family": "knowledge",
+          "percent": 100,
+          "stages": {
+            "knowledge": {
+              "correct": 8,
+              "total": 8,
+              "percent": 100
+            }
+          },
+          "submissionStatus": "scored_json",
+          "allRequiredFieldsCorrect": true,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "easy-4",
+          "family": "tracking",
+          "percent": 100,
+          "stages": {
+            "knowledge": {
+              "correct": 5,
+              "total": 5,
+              "percent": 100
+            }
+          },
+          "submissionStatus": "scored_json",
+          "allRequiredFieldsCorrect": true,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "easy-5",
+          "family": "coordination",
+          "percent": 100,
+          "stages": {
+            "coordination": {
+              "correct": 3,
+              "total": 3,
+              "percent": 100
+            }
+          },
+          "submissionStatus": "scored_json",
+          "allRequiredFieldsCorrect": true,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "easy-6",
+          "family": "reversible-synthesis",
+          "percent": 0,
+          "stages": {
+            "checkpoints": {
+              "correct": 0,
+              "total": 100,
+              "percent": 0
+            }
+          },
+          "submissionStatus": "scored_json",
+          "allRequiredFieldsCorrect": false,
+          "stageWeightPercent": 100,
+          "checkpointProgress": {
+            "completed": 0,
+            "total": 3,
+            "checkpoints": [
+              {
+                "id": "inputs",
+                "earned": 0,
+                "max": 20
+              },
+              {
+                "id": "valid",
+                "earned": 0,
+                "max": 50
+              },
+              {
+                "id": "shortest",
+                "earned": 0,
+                "max": 30
+              }
+            ]
+          },
+          "originalGoalComplete": false
+        }
+      ]
+    },
+    "execution": {
+      "exitCode": null,
+      "signal": "SIGKILL",
+      "reason": "finished",
+      "failure": null,
+      "cleanupFailure": null,
+      "usage": {
+        "input_tokens": 14,
+        "cache_creation_input_tokens": 12901,
+        "cache_read_input_tokens": 51766,
+        "output_tokens": 6900,
+        "output_tokens_details": {
+          "thinking_tokens": 5999
+        },
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 12901,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 2,
+            "output_tokens": 216,
+            "cache_read_input_tokens": 13607,
+            "cache_creation_input_tokens": 822,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 822
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "fallback_credit": null
+      },
+      "streamUsage": {
+        "responses": 7,
+        "input_tokens": 14,
+        "cache_creation_input_tokens": 12901,
+        "cache_read_input_tokens": 51766,
+        "estimated_output_tokens": 6900,
+        "estimated_reasoning_tokens": 5999,
+        "exact": true
+      },
+      "outputTokensSeen": null,
+      "terminal": true,
+      "threadId": null,
+      "stoppedAt": 1791195636614,
+      "observedModels": [
+        "claude-sonnet-5-5"
+      ],
+      "observedEfforts": [],
+      "wallSeconds": 65.678,
+      "clientVersion": "2.1.288 (Claude Code)",
+      "graceSeconds": 30,
+      "maxOutputTokens": null,
+      "graceTokens": null,
+      "commandCounts": {
+        "start": 1,
+        "questions": 1,
+        "answer": 6,
+        "budget": 1
+      }
+    },
+    "tasks": [
+      {
+        "id": "easy-1",
+        "family": "hats",
+        "promptHash": "2039f5f0cbda239753646a62a3cc875abfdf7db7c1ff72b65862c8a12a03f90a",
+        "submitted": true,
+        "filledFields": 6
+      },
+      {
+        "id": "easy-2",
+        "family": "cards",
+        "promptHash": "42e37e15439388e96a10ebd44e63b7357db16ed2d52eb41fd6480b58ffacefd0",
+        "submitted": true,
+        "filledFields": 4
+      },
+      {
+        "id": "easy-3",
+        "family": "knowledge",
+        "promptHash": "3ae4259f5b6636487a0b957f88450aca164f183830fe45fd754d227ccf4ea869",
+        "submitted": true,
+        "filledFields": 8
+      },
+      {
+        "id": "easy-4",
+        "family": "tracking",
+        "promptHash": "fb55aef5e04c059fe24e03b63eb436fd89b4288a1ea8bcc68828d80d0960a29a",
+        "submitted": true,
+        "filledFields": 5
+      },
+      {
+        "id": "easy-5",
+        "family": "coordination",
+        "promptHash": "78df6387920d40c95b59024903c9c806393c17c5361ee612a864c97ee0bee014",
+        "submitted": true,
+        "filledFields": 9
+      },
+      {
+        "id": "easy-6",
+        "family": "reversible-synthesis",
+        "promptHash": "cf599c13d3975e5acb6131c10e73682ee0e00b6db7dc5849c1ea4e9afb67376c",
+        "submitted": true,
+        "filledFields": 1
+      }
+    ]
+  },
+  "error": null
+}

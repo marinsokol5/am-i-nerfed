@@ -1,0 +1,274 @@
+{
+  "harness": {
+    "run": {
+      "provider": "openai",
+      "agent": "codex",
+      "command": null,
+      "model": "gpt-5.6-terra",
+      "difficulty": "medium",
+      "seconds": 180
+    },
+    "attempt": 1,
+    "startedAt": "2026-10-05T11:15:24.096Z",
+    "exitCode": 0,
+    "progress": [
+      "start: 180s remaining",
+      "questions: 169s remaining",
+      "answer: 158s remaining",
+      "answer: 122s remaining",
+      "answer: 88s remaining",
+      "answer: 10s remaining",
+      "answer: 0s remaining"
+    ],
+    "command": "codex",
+    "effort": "high",
+    "graceSeconds": 30,
+    "maxOutputTokens": null,
+    "graceTokens": 1000,
+    "systemPrompt": "none"
+  },
+  "run": {
+    "runId": "8b926ec0-b5ce-456b-a2a7-162d163e1712",
+    "baselineId": "b24557ac-7628-49d6-8f45-34f19ec43122",
+    "appVersion": "0.11.0",
+    "taskBankVersion": 13,
+    "protocolVersion": 1,
+    "taskBankHash": "09f038c9c773850a7e95f4f9f7c1e87e58b40dfbd31c34140a121cedf25c6b09",
+    "difficulty": "medium",
+    "invocation": "cli",
+    "agent": "codex",
+    "provider": "openai",
+    "model": "gpt-5.6-terra",
+    "effort": "high",
+    "systemPrompt": "none",
+    "metadataSource": "configured",
+    "clockEnforcement": "process-watchdog",
+    "status": "expired",
+    "clock": {
+      "startedAt": "2026-10-05T11:15:24.164Z",
+      "deadlineAt": "2026-10-05T11:18:24.164Z",
+      "durationSeconds": 180,
+      "elapsedSeconds": 180,
+      "remainingSeconds": 0
+    },
+    "finishedAt": "2026-10-05T11:18:24.164Z",
+    "result": {
+      "percent": 60.705128205128204,
+      "taskWeightPercent": 16.666666666666668,
+      "tasks": [
+        {
+          "id": "medium-1",
+          "family": "hats",
+          "percent": 69.23076923076923,
+          "stages": {
+            "knowledge": {
+              "correct": 9,
+              "total": 13,
+              "percent": 69.23076923076923
+            }
+          },
+          "submissionStatus": "scored_json",
+          "allRequiredFieldsCorrect": false,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "medium-2",
+          "family": "cards",
+          "percent": 100,
+          "stages": {
+            "knowledge": {
+              "correct": 7,
+              "total": 7,
+              "percent": 100
+            }
+          },
+          "submissionStatus": "scored_json",
+          "allRequiredFieldsCorrect": true,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "medium-3",
+          "family": "knowledge",
+          "percent": 95,
+          "stages": {
+            "knowledge": {
+              "correct": 9,
+              "total": 10,
+              "percent": 90
+            },
+            "counterfactual": {
+              "correct": 4,
+              "total": 4,
+              "percent": 100
+            }
+          },
+          "submissionStatus": "scored_json",
+          "allRequiredFieldsCorrect": false,
+          "stageWeightPercent": 50
+        },
+        {
+          "id": "medium-4",
+          "family": "tracking",
+          "percent": 100,
+          "stages": {
+            "knowledge": {
+              "correct": 7,
+              "total": 7,
+              "percent": 100
+            }
+          },
+          "submissionStatus": "scored_json",
+          "allRequiredFieldsCorrect": true,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "medium-5",
+          "family": "coordination",
+          "percent": 0,
+          "stages": {
+            "coordination": {
+              "correct": 0,
+              "total": 6,
+              "percent": 0
+            }
+          },
+          "submissionStatus": "partial_submission",
+          "allRequiredFieldsCorrect": false,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "medium-6",
+          "family": "reversible-synthesis",
+          "percent": 0,
+          "stages": {
+            "checkpoints": {
+              "correct": 0,
+              "total": 100,
+              "percent": 0
+            }
+          },
+          "submissionStatus": "partial_submission",
+          "allRequiredFieldsCorrect": false,
+          "stageWeightPercent": 100,
+          "checkpointProgress": {
+            "completed": 0,
+            "total": 3,
+            "checkpoints": [
+              {
+                "id": "inputs",
+                "earned": 0,
+                "max": 20
+              },
+              {
+                "id": "valid",
+                "earned": 0,
+                "max": 50
+              },
+              {
+                "id": "shortest",
+                "earned": 0,
+                "max": 30
+              }
+            ]
+          },
+          "originalGoalComplete": false
+        }
+      ]
+    },
+    "execution": {
+      "exitCode": null,
+      "signal": "SIGTERM",
+      "reason": "deadline",
+      "failure": null,
+      "cleanupFailure": null,
+      "usage": {
+        "input_tokens": 86375,
+        "cached_input_tokens": 50944,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 4834,
+        "reasoning_output_tokens": 3967
+      },
+      "streamUsage": null,
+      "outputTokensSeen": null,
+      "terminal": true,
+      "threadId": "01a10bc6-8da1-74f3-856e-b524015c0b14",
+      "stoppedAt": 1791199104186,
+      "observedModels": [],
+      "observedEfforts": [],
+      "wallSeconds": 184.98,
+      "clientVersion": "codex-cli 0.160.0",
+      "graceSeconds": 30,
+      "maxOutputTokens": null,
+      "graceTokens": null,
+      "commandCounts": {
+        "start": 1,
+        "questions": 1,
+        "answer": 5
+      },
+      "nativeEvidence": {
+        "threadId": "01a10bc6-8da1-74f3-856e-b524015c0b14",
+        "models": [
+          "gpt-5.6-terra"
+        ],
+        "efforts": [
+          "high"
+        ],
+        "instructionFileMessages": 0,
+        "baseInstructions": "Follow the user's instructions.",
+        "reportedTokenUsage": {
+          "input_tokens": 86375,
+          "cached_input_tokens": 50944,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 4834,
+          "reasoning_output_tokens": 3967,
+          "total_tokens": 91209
+        }
+      }
+    },
+    "tasks": [
+      {
+        "id": "medium-1",
+        "family": "hats",
+        "promptHash": "3be2ffde50a6fe06fb6781a28c92ecaf074d231e6d2c542eb753e327c78a0174",
+        "submitted": true,
+        "filledFields": 13
+      },
+      {
+        "id": "medium-2",
+        "family": "cards",
+        "promptHash": "e38acd284e9dc3aba3a6070a9535aa7cb8cfb8a8aa1c4870c60a39495429e11e",
+        "submitted": true,
+        "filledFields": 7
+      },
+      {
+        "id": "medium-3",
+        "family": "knowledge",
+        "promptHash": "fd0a4e29989c207b2f4ca4b43abc60e69883826517a84fe7d5f4ad8201649a66",
+        "submitted": true,
+        "filledFields": 14
+      },
+      {
+        "id": "medium-4",
+        "family": "tracking",
+        "promptHash": "c8eaf2ae348d18b0a5f4ef5615dccafb8f3c9cd4397d73576f6cbdcbcd2e70df",
+        "submitted": true,
+        "filledFields": 7
+      },
+      {
+        "id": "medium-5",
+        "family": "coordination",
+        "promptHash": "0bc3b7b0bb5cde96220c136c0cc267dd3242fccd54125feab02dc7b2c3a8732c",
+        "submitted": false,
+        "filledFields": 0
+      },
+      {
+        "id": "medium-6",
+        "family": "reversible-synthesis",
+        "promptHash": "0baf6bcbccc94f005ab5c22439fa8a2a8e10def76238166246ab768688dd7e06",
+        "submitted": false,
+        "filledFields": 0
+      }
+    ]
+  },
+  "error": null
+}
