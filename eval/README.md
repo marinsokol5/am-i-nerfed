@@ -1,5 +1,7 @@
 # Evaluation harness
 
+[RESULTS.md](RESULTS.md) collects every run so far in one place.
+
 `eval/harness.js` runs every model listed in [`models.json`](models.json) at every configured level, one run at a time, through this checkout's `am-i-nerfed run`. It needs an initialized baseline (`am-i-nerfed init`) and signed-in `claude` and `codex` clients.
 
 ```bash
