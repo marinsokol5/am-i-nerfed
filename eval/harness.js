@@ -9,7 +9,8 @@ import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const usage = `usage: node eval/harness.js [--config FILE] [--mode time|tokens] [--models A,B]
-                          [--levels easy,hard] [--max-output-tokens N] [--out DIR] [--dry-run]
+                          [--levels easy,hard] [--effort LEVEL] [--max-output-tokens N]
+                          [--out DIR] [--dry-run]
        node eval/harness.js summarize RUN_DIR`;
 
 export const runName = ({ agent, model, difficulty, seconds, maxOutputTokens }) =>
@@ -249,7 +250,7 @@ function attempt(run, config, dir, number) {
 async function sweep(config, options) {
   const runs = plan(config, options);
   if (options.dryRun) {
-    for (const run of runs) console.log(`${run.agent} ${run.model} ${run.difficulty} ${run.seconds}s${
+    for (const run of runs) console.log(`${run.agent} ${run.model} ${config.effort} ${run.difficulty} ${run.seconds}s${
       run.maxOutputTokens ? ` ${run.maxOutputTokens} tokens` : ""} via ${run.command ?? run.agent}`);
     return;
   }
@@ -307,6 +308,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     config.levels = config.tokenLevels;
   } else if (value("--mode") && value("--mode") !== "time") throw Error(usage);
   if (value("--max-output-tokens")) config.maxOutputTokens = Number(value("--max-output-tokens"));
+  if (value("--effort")) config.effort = value("--effort");
   if (args.includes("--help")) console.log(usage);
   else if (args[0] === "summarize") {
     if (!args[1]) throw Error(usage);

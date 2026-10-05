@@ -7,6 +7,7 @@ node eval/harness.js --dry-run                       # list the planned runs
 node eval/harness.js                                 # run them all
 node eval/harness.js --models gpt-6-astra --levels hard
 node eval/harness.js --mode tokens                   # token budgets instead of time limits
+node eval/harness.js --effort medium --out eval/run-medium-effort   # another effort, in its own folder
 node eval/harness.js --models gpt-6-astra --out eval/run-2026-10-05-1200   # add to an existing sweep
 node eval/harness.js summarize eval/run-2026-10-05-1200   # rebuild result.md from the records
 ```
