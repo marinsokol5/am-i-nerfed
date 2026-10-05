@@ -1,6 +1,6 @@
 // No preset budgets: accept positive whole seconds whose millisecond deadline
 // can be represented exactly by JavaScript's number and Date types.
-export function durationSeconds(value = 120, now = Date.now()) {
+export function durationSeconds(value = 180, now = Date.now()) {
   if (
     !Number.isSafeInteger(value) ||
     value <= 0 ||

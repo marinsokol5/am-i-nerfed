@@ -32,7 +32,7 @@ export const MINIMAL_SYSTEM_PROMPT = "Follow the user's instructions.";
 // only the CLI-specific parts may differ. See AGENTS.md. A token budget
 // replaces the time wording; its seconds remain a safety limit.
 export function examPrompt({
-  seconds = 120,
+  seconds = 180,
   difficulty = "medium",
   maxOutputTokens,
 } = {}) {
@@ -655,7 +655,7 @@ export async function runAssessment(options) {
   if (!["native", "none"].includes(systemPrompt))
     throw Error("Invalid system prompt mode");
   const seconds = durationSeconds(
-    options.seconds ?? (options.maxOutputTokens ? 1800 : 120),
+    options.seconds ?? (options.maxOutputTokens ? 1800 : 180),
   );
   const graceSeconds = options.graceSeconds ?? (options.maxOutputTokens ? 30 : 0);
   const maxOutputTokens = options.maxOutputTokens;

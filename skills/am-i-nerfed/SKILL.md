@@ -9,7 +9,7 @@ metadata:
 
 - The `am-i-nerfed` CLI is installed and available in the current shell -> run `am-i-nerfed --version` to verify; otherwise ask user to run `npm install -g am-i-nerfed` themselves and restart the session.
 - The question bank of `am-i-nerfed` has been created -> run `am-i-nerfed doctor --init` and check that it prints back `true`; otherwise ask user to run `am-i-nerfed init` themselves.
-- Skill arguments -> difficulty <DIFFICULTY>: `easy`, `medium`, or `hard` (default `medium`) and a total allowance in positive whole seconds <TIME> (default `120`); for example `/am-i-nerfed medium 120` (`/am-i-nerfed <DIFFICULTY> <TIME>`). These select the puzzle difficulty level and time budget, not your reasoning effort. Reject invalid arguments before starting.
+- Skill arguments -> difficulty <DIFFICULTY>: `easy`, `medium`, or `hard` (default `medium`) and a total allowance in positive whole seconds <TIME> (default `180`); for example `/am-i-nerfed medium 180` (`/am-i-nerfed <DIFFICULTY> <TIME>`). These select the puzzle difficulty level and time budget, not your reasoning effort. Reject invalid arguments before starting.
 
 ## Rules
 

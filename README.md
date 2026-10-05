@@ -25,7 +25,7 @@ am-i-nerfed run --agent codex --model gpt-6-astra --effort high --difficulty har
 am-i-nerfed run --agent claude --model claude-opus-5-5 --effort high --max-output-tokens 10000
 ```
 
-Defaults are medium difficulty and 120 seconds. `--max-output-tokens` replaces the time limit with a budget of output tokens, reasoning included.
+Defaults are medium difficulty and 180 seconds. `--max-output-tokens` replaces the time limit with a budget of output tokens, reasoning included.
 
 **Skill:** the agent you are already talking to takes the test in its current conversation.
 
@@ -33,7 +33,7 @@ Defaults are medium difficulty and 120 seconds. `--max-output-tokens` replaces t
 am-i-nerfed skill install
 ```
 
-Then ask your agent: `/am-i-nerfed medium 120` (Claude Code) or `$am-i-nerfed medium 120` (Codex). A skill cannot interrupt its host mid-answer, so only the answer deadline is enforced; use the CLI for a hard cutoff.
+Then ask your agent: `/am-i-nerfed medium 180` (Claude Code) or `$am-i-nerfed medium 180` (Codex). A skill cannot interrupt its host mid-answer, so only the answer deadline is enforced; use the CLI for a hard cutoff.
 
 ## What it measures
 

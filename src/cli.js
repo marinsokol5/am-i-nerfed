@@ -56,7 +56,7 @@ const help = `am-i-nerfed — private reasoning assessments
   skill install [--yes] [--agent NAME] [--global|--project] [--copy]
   --version
 
-Six tasks per assessment; default medium difficulty and 120 seconds.
+Six tasks per assessment; default medium difficulty and 180 seconds.
 run launches a fresh native CLI session with a process watchdog.
 --grace-seconds lets the client end its turn after the run closes, so it
 reports exact token usage; --transcript saves the client's session log.
@@ -274,7 +274,7 @@ export async function main(args = process.argv.slice(2)) {
         tasks: bank.tasks.length,
         difficulties: ["easy", "medium", "hard"],
         defaultDifficulty: "medium",
-        defaultSeconds: 120,
+        defaultSeconds: 180,
       };
     });
     print(result);

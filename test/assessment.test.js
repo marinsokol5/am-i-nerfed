@@ -62,7 +62,7 @@ test("six-task run preserves partial work, grades equally and permanently closes
     );
     assert.equal(start.tasks.length, 6);
     assert.equal(start.difficulty, "medium");
-    assert.equal(start.clock.remainingSeconds, 120);
+    assert.equal(start.clock.remainingSeconds, 180);
     assert.equal(start.clockEnforcement, "answer-deadline");
     assert.equal(start.result, undefined);
     const runId = start.runId,
@@ -237,7 +237,7 @@ test("exact deadline and processing that crosses it reject new work, freezing th
     const start = startAssessment(f.state, {}, now),
       runId = start.runId,
       taskId = start.tasks[0].id;
-    let ticks = [now + 119999, now + 120000];
+    let ticks = [now + 179999, now + 180000];
     const result = assessmentAction(
       f.state,
       "answer",
@@ -247,7 +247,7 @@ test("exact deadline and processing that crosses it reject new work, freezing th
     assert.equal(result.accepted, false);
     assert.equal(result.status, "expired");
     assert.equal(result.result.percent, 0);
-    assert.equal(result.clock.elapsedSeconds, 120);
+    assert.equal(result.clock.elapsedSeconds, 180);
     const record = JSON.parse(fs.readFileSync(assessmentPath(f.state, runId)));
     assert.deepEqual(record.drafts, {});
   } finally {
@@ -389,13 +389,13 @@ test("history materializes expired skill runs and reports their frozen scores", 
     const start = startAssessment(
       f.state,
       { invocation: "skill" },
-      Date.now() - 180000,
+      Date.now() - 240000,
     );
     const row = listHistory(f.root).runs[0];
     assert.equal(row.runId, start.runId);
     assert.equal(row.status, "expired");
     assert.equal(row.percent, 0);
-    assert.equal(row.elapsedSeconds, 120);
+    assert.equal(row.elapsedSeconds, 180);
     assert.equal(row.clockEnforcement, "answer-deadline");
   } finally {
     f.cleanup();
