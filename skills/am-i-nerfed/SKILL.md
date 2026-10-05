@@ -19,6 +19,7 @@ metadata:
 - No correctness feedback is returned while an assessment is active. 
 - It's highly recommended to attempt all tasks before spending the remaining time on refinements. Use short reasoning passes and partial answers to avoid losing work. Partially correct answers influence final score, so saving something early is worth it.
 - There is no reward for finishing the assessment early or for stopping work with the timer still ticking. Saved answers are kept; being mid-thought when time runs out costs nothing.
+- Do not write a summary of your answers before the deadline; it spends time and earns nothing.
 
 ## Assessment
 

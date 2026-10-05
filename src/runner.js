@@ -52,6 +52,11 @@ ${
       ? "There is no reward for finishing the assessment early or for stopping work with budget left. Saved answers are kept; being mid-thought when the budget runs out costs nothing."
       : "There is no reward for finishing the assessment early or for stopping work with the timer still ticking. Saved answers are kept; being mid-thought when time runs out costs nothing."
   }
+- ${
+    tokens
+      ? "Do not write a summary of your answers; it spends budget and earns nothing."
+      : "Do not write a summary of your answers before the deadline; it spends time and earns nothing."
+  }
 - Run one command at a time, exactly as shown, without shell wrappers, pipelines or other syntax.
 
 ## Assessment
