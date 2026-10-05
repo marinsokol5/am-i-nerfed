@@ -1,0 +1,250 @@
+{
+  "harness": {
+    "run": {
+      "provider": "anthropic-ms55",
+      "agent": "claude",
+      "command": "am run claude-ms55",
+      "model": "claude-haiku-4-5",
+      "difficulty": "easy",
+      "seconds": 600,
+      "maxOutputTokens": 4000
+    },
+    "attempt": 1,
+    "startedAt": "2026-10-05T12:48:08.008Z",
+    "exitCode": 0,
+    "progress": [
+      "start: 600s remaining",
+      "questions: 595s remaining"
+    ],
+    "command": "am run claude-ms55",
+    "effort": "high",
+    "graceSeconds": 30,
+    "maxOutputTokens": 4000,
+    "graceTokens": 1000,
+    "systemPrompt": "none"
+  },
+  "run": {
+    "runId": "7057006f-dad6-405f-824b-f36dd13c4654",
+    "baselineId": "b24557ac-7628-49d6-8f45-34f19ec43122",
+    "appVersion": "0.11.0",
+    "taskBankVersion": 13,
+    "protocolVersion": 1,
+    "taskBankHash": "09f038c9c773850a7e95f4f9f7c1e87e58b40dfbd31c34140a121cedf25c6b09",
+    "difficulty": "easy",
+    "invocation": "cli",
+    "agent": "claude",
+    "provider": "anthropic",
+    "model": "claude-haiku-4-5",
+    "effort": "high",
+    "systemPrompt": "none",
+    "metadataSource": "configured",
+    "clockEnforcement": "process-watchdog",
+    "status": "finished",
+    "clock": {
+      "startedAt": "2026-10-05T12:48:08.100Z",
+      "deadlineAt": "2026-10-05T12:58:08.100Z",
+      "durationSeconds": 600,
+      "elapsedSeconds": 77,
+      "remainingSeconds": 0
+    },
+    "finishedAt": "2026-10-05T12:49:25.768Z",
+    "result": {
+      "percent": 0,
+      "taskWeightPercent": 16.666666666666668,
+      "tasks": [
+        {
+          "id": "easy-1",
+          "family": "hats",
+          "percent": 0,
+          "stages": {
+            "knowledge": {
+              "correct": 0,
+              "total": 6,
+              "percent": 0
+            }
+          },
+          "submissionStatus": "partial_submission",
+          "allRequiredFieldsCorrect": false,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "easy-2",
+          "family": "cards",
+          "percent": 0,
+          "stages": {
+            "knowledge": {
+              "correct": 0,
+              "total": 4,
+              "percent": 0
+            }
+          },
+          "submissionStatus": "partial_submission",
+          "allRequiredFieldsCorrect": false,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "easy-3",
+          "family": "knowledge",
+          "percent": 0,
+          "stages": {
+            "knowledge": {
+              "correct": 0,
+              "total": 8,
+              "percent": 0
+            }
+          },
+          "submissionStatus": "partial_submission",
+          "allRequiredFieldsCorrect": false,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "easy-4",
+          "family": "tracking",
+          "percent": 0,
+          "stages": {
+            "knowledge": {
+              "correct": 0,
+              "total": 5,
+              "percent": 0
+            }
+          },
+          "submissionStatus": "partial_submission",
+          "allRequiredFieldsCorrect": false,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "easy-5",
+          "family": "coordination",
+          "percent": 0,
+          "stages": {
+            "coordination": {
+              "correct": 0,
+              "total": 3,
+              "percent": 0
+            }
+          },
+          "submissionStatus": "partial_submission",
+          "allRequiredFieldsCorrect": false,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "easy-6",
+          "family": "reversible-synthesis",
+          "percent": 0,
+          "stages": {
+            "checkpoints": {
+              "correct": 0,
+              "total": 100,
+              "percent": 0
+            }
+          },
+          "submissionStatus": "partial_submission",
+          "allRequiredFieldsCorrect": false,
+          "stageWeightPercent": 100,
+          "checkpointProgress": {
+            "completed": 0,
+            "total": 3,
+            "checkpoints": [
+              {
+                "id": "inputs",
+                "earned": 0,
+                "max": 20
+              },
+              {
+                "id": "valid",
+                "earned": 0,
+                "max": 50
+              },
+              {
+                "id": "shortest",
+                "earned": 0,
+                "max": 30
+              }
+            ]
+          },
+          "originalGoalComplete": false
+        }
+      ]
+    },
+    "execution": {
+      "exitCode": null,
+      "signal": "SIGKILL",
+      "reason": "budget",
+      "failure": null,
+      "cleanupFailure": null,
+      "usage": null,
+      "streamUsage": {
+        "responses": 2,
+        "input_tokens": 17,
+        "cache_creation_input_tokens": 5187,
+        "cache_read_input_tokens": 4858,
+        "estimated_output_tokens": 8092,
+        "estimated_reasoning_tokens": 7903,
+        "exact": false
+      },
+      "outputTokensSeen": 8092,
+      "terminal": false,
+      "threadId": null,
+      "stoppedAt": 1791204565768,
+      "observedModels": [
+        "claude-haiku-4-5",
+        "claude-haiku-4-5-20251001"
+      ],
+      "observedEfforts": [],
+      "wallSeconds": 78.094,
+      "clientVersion": "2.1.289 (Claude Code)",
+      "graceSeconds": 30,
+      "maxOutputTokens": 4000,
+      "graceTokens": 1000,
+      "commandCounts": {
+        "start": 1,
+        "questions": 1
+      }
+    },
+    "tasks": [
+      {
+        "id": "easy-1",
+        "family": "hats",
+        "promptHash": "2039f5f0cbda239753646a62a3cc875abfdf7db7c1ff72b65862c8a12a03f90a",
+        "submitted": false,
+        "filledFields": 0
+      },
+      {
+        "id": "easy-2",
+        "family": "cards",
+        "promptHash": "42e37e15439388e96a10ebd44e63b7357db16ed2d52eb41fd6480b58ffacefd0",
+        "submitted": false,
+        "filledFields": 0
+      },
+      {
+        "id": "easy-3",
+        "family": "knowledge",
+        "promptHash": "3ae4259f5b6636487a0b957f88450aca164f183830fe45fd754d227ccf4ea869",
+        "submitted": false,
+        "filledFields": 0
+      },
+      {
+        "id": "easy-4",
+        "family": "tracking",
+        "promptHash": "fb55aef5e04c059fe24e03b63eb436fd89b4288a1ea8bcc68828d80d0960a29a",
+        "submitted": false,
+        "filledFields": 0
+      },
+      {
+        "id": "easy-5",
+        "family": "coordination",
+        "promptHash": "78df6387920d40c95b59024903c9c806393c17c5361ee612a864c97ee0bee014",
+        "submitted": false,
+        "filledFields": 0
+      },
+      {
+        "id": "easy-6",
+        "family": "reversible-synthesis",
+        "promptHash": "cf599c13d3975e5acb6131c10e73682ee0e00b6db7dc5849c1ea4e9afb67376c",
+        "submitted": false,
+        "filledFields": 0
+      }
+    ]
+  },
+  "error": null
+}

@@ -1,0 +1,289 @@
+{
+  "harness": {
+    "run": {
+      "provider": "anthropic",
+      "agent": "claude",
+      "command": "am run claude-ms18",
+      "model": "claude-opus-5-5",
+      "difficulty": "easy",
+      "seconds": 600,
+      "maxOutputTokens": 4000
+    },
+    "attempt": 1,
+    "startedAt": "2026-10-05T12:24:35.086Z",
+    "exitCode": 0,
+    "progress": [
+      "start: 600s remaining",
+      "questions: 596s remaining",
+      "answer: 581s remaining",
+      "answer: 580s remaining",
+      "answer: 579s remaining",
+      "answer: 578s remaining",
+      "answer: 558s remaining",
+      "answer: 557s remaining"
+    ],
+    "command": "am run claude-ms18",
+    "effort": "high",
+    "graceSeconds": 30,
+    "maxOutputTokens": 4000,
+    "graceTokens": 1000,
+    "systemPrompt": "none"
+  },
+  "run": {
+    "runId": "0370ebf6-0c4f-40d2-b696-234f3cf15856",
+    "baselineId": "b24557ac-7628-49d6-8f45-34f19ec43122",
+    "appVersion": "0.11.0",
+    "taskBankVersion": 13,
+    "protocolVersion": 1,
+    "taskBankHash": "09f038c9c773850a7e95f4f9f7c1e87e58b40dfbd31c34140a121cedf25c6b09",
+    "difficulty": "easy",
+    "invocation": "cli",
+    "agent": "claude",
+    "provider": "anthropic",
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "systemPrompt": "none",
+    "metadataSource": "configured",
+    "clockEnforcement": "process-watchdog",
+    "status": "finished",
+    "clock": {
+      "startedAt": "2026-10-05T12:24:35.248Z",
+      "deadlineAt": "2026-10-05T12:34:35.248Z",
+      "durationSeconds": 600,
+      "elapsedSeconds": 49,
+      "remainingSeconds": 0
+    },
+    "finishedAt": "2026-10-05T12:25:24.394Z",
+    "result": {
+      "percent": 97.22222222222221,
+      "taskWeightPercent": 16.666666666666668,
+      "tasks": [
+        {
+          "id": "easy-1",
+          "family": "hats",
+          "percent": 83.33333333333333,
+          "stages": {
+            "knowledge": {
+              "correct": 5,
+              "total": 6,
+              "percent": 83.33333333333333
+            }
+          },
+          "submissionStatus": "scored_json",
+          "allRequiredFieldsCorrect": false,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "easy-2",
+          "family": "cards",
+          "percent": 100,
+          "stages": {
+            "knowledge": {
+              "correct": 4,
+              "total": 4,
+              "percent": 100
+            }
+          },
+          "submissionStatus": "scored_json",
+          "allRequiredFieldsCorrect": true,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "easy-3",
+          "family": "knowledge",
+          "percent": 100,
+          "stages": {
+            "knowledge": {
+              "correct": 8,
+              "total": 8,
+              "percent": 100
+            }
+          },
+          "submissionStatus": "scored_json",
+          "allRequiredFieldsCorrect": true,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "easy-4",
+          "family": "tracking",
+          "percent": 100,
+          "stages": {
+            "knowledge": {
+              "correct": 5,
+              "total": 5,
+              "percent": 100
+            }
+          },
+          "submissionStatus": "scored_json",
+          "allRequiredFieldsCorrect": true,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "easy-5",
+          "family": "coordination",
+          "percent": 100,
+          "stages": {
+            "coordination": {
+              "correct": 3,
+              "total": 3,
+              "percent": 100
+            }
+          },
+          "submissionStatus": "scored_json",
+          "allRequiredFieldsCorrect": true,
+          "stageWeightPercent": 100
+        },
+        {
+          "id": "easy-6",
+          "family": "reversible-synthesis",
+          "percent": 100,
+          "stages": {
+            "checkpoints": {
+              "correct": 100,
+              "total": 100,
+              "percent": 100
+            }
+          },
+          "submissionStatus": "scored_json",
+          "allRequiredFieldsCorrect": true,
+          "stageWeightPercent": 100,
+          "checkpointProgress": {
+            "completed": 3,
+            "total": 3,
+            "checkpoints": [
+              {
+                "id": "inputs",
+                "earned": 20,
+                "max": 20
+              },
+              {
+                "id": "valid",
+                "earned": 50,
+                "max": 50
+              },
+              {
+                "id": "shortest",
+                "earned": 30,
+                "max": 30
+              }
+            ]
+          },
+          "originalGoalComplete": true
+        }
+      ]
+    },
+    "execution": {
+      "exitCode": null,
+      "signal": "SIGKILL",
+      "reason": "budget",
+      "failure": null,
+      "cleanupFailure": null,
+      "usage": {
+        "input_tokens": 10,
+        "cache_creation_input_tokens": 11942,
+        "cache_read_input_tokens": 23474,
+        "output_tokens": 4565,
+        "output_tokens_details": {
+          "thinking_tokens": 3090
+        },
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 11942,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 2,
+            "output_tokens": 517,
+            "cache_read_input_tokens": 9715,
+            "cache_creation_input_tokens": 2227,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 2227
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "fallback_credit": null
+      },
+      "streamUsage": {
+        "responses": 5,
+        "input_tokens": 10,
+        "cache_creation_input_tokens": 11942,
+        "cache_read_input_tokens": 23474,
+        "estimated_output_tokens": 4565,
+        "estimated_reasoning_tokens": 3090,
+        "exact": true
+      },
+      "outputTokensSeen": 4048,
+      "terminal": true,
+      "threadId": null,
+      "stoppedAt": 1791203124394,
+      "observedModels": [
+        "claude-opus-5-5"
+      ],
+      "observedEfforts": [],
+      "wallSeconds": 49.591,
+      "clientVersion": "2.1.289 (Claude Code)",
+      "graceSeconds": 30,
+      "maxOutputTokens": 4000,
+      "graceTokens": 1000,
+      "commandCounts": {
+        "start": 1,
+        "questions": 1,
+        "answer": 6
+      }
+    },
+    "tasks": [
+      {
+        "id": "easy-1",
+        "family": "hats",
+        "promptHash": "2039f5f0cbda239753646a62a3cc875abfdf7db7c1ff72b65862c8a12a03f90a",
+        "submitted": true,
+        "filledFields": 6
+      },
+      {
+        "id": "easy-2",
+        "family": "cards",
+        "promptHash": "42e37e15439388e96a10ebd44e63b7357db16ed2d52eb41fd6480b58ffacefd0",
+        "submitted": true,
+        "filledFields": 4
+      },
+      {
+        "id": "easy-3",
+        "family": "knowledge",
+        "promptHash": "3ae4259f5b6636487a0b957f88450aca164f183830fe45fd754d227ccf4ea869",
+        "submitted": true,
+        "filledFields": 8
+      },
+      {
+        "id": "easy-4",
+        "family": "tracking",
+        "promptHash": "fb55aef5e04c059fe24e03b63eb436fd89b4288a1ea8bcc68828d80d0960a29a",
+        "submitted": true,
+        "filledFields": 5
+      },
+      {
+        "id": "easy-5",
+        "family": "coordination",
+        "promptHash": "78df6387920d40c95b59024903c9c806393c17c5361ee612a864c97ee0bee014",
+        "submitted": true,
+        "filledFields": 9
+      },
+      {
+        "id": "easy-6",
+        "family": "reversible-synthesis",
+        "promptHash": "cf599c13d3975e5acb6131c10e73682ee0e00b6db7dc5849c1ea4e9afb67376c",
+        "submitted": true,
+        "filledFields": 1
+      }
+    ]
+  },
+  "error": null
+}
