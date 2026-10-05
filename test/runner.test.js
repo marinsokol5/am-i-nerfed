@@ -16,7 +16,7 @@ import {
   examPrompt,
 } from "../src/runner.js";
 import { listHistory } from "../src/assessment.js";
-import { codexEnvironment, codexEvidence } from "../src/codex-context.js";
+import { codexEnvironment, codexEvidence, codexSessionFile } from "../src/codex-context.js";
 
 test("Codex assessment home excludes personal instructions and shares auth without copying it", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "nerfed-codex-context-"));
@@ -68,6 +68,9 @@ test("transport audit permits literal answers and rejects command execution hidd
     `./assessment answer --task hard-6 --json '{"program":"AB"}`,
     `./assessment answer --task hard-5 --json '{"coordination":{"base":"3/2"}}'`,
     `/bin/zsh -lc './assessment status'`,
+    `/opt/homebrew/bin/bash -lc './assessment budget'`,
+    `/usr/local/bin/zsh -lc './assessment questions'`,
+    `/bin/dash -c './assessment start'`,
     "./assessment status --verbose",
     "./assessment timer",
     "./assessment budget",
@@ -491,6 +494,19 @@ test("packaged runner and transport complete six-task lifecycles at every diffic
   }
 });
 
+test("a Codex session log is found under the local date on either side of the UTC date", () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nerfed-codex-days-"));
+  try {
+    // A run at 01:00 UTC on 2026-10-06 is still the evening of 2026-10-05 west of UTC.
+    const startedAt = Date.parse("2026-10-06T01:00:00Z"), dir = path.join(home, "sessions", "2026", "10", "05");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "rollout-2026-10-05T18-00-00-thread-1.jsonl"), "");
+    assert.equal(codexSessionFile(home, "thread-1", startedAt), path.join(dir, "rollout-2026-10-05T18-00-00-thread-1.jsonl"));
+    assert.equal(codexSessionFile(home, "thread-2", startedAt), null);
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
 test("client command overrides split into executable and prefix arguments", () => {
   assert.deepEqual(clientCommand("claude", {}), ["claude"]);
   assert.deepEqual(clientCommand("codex", { AM_I_NERFED_CODEX_COMMAND: "  " }), ["codex"]);

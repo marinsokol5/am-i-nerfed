@@ -36,9 +36,11 @@ export function codexEnvironment(stateRoot, env) {
 }
 
 // The native session log of one thread, stored under the day it started.
+// Codex names that folder by local date, which is within a day of the UTC
+// date in every time zone.
 export function codexSessionFile(home, threadId, startedAt) {
   if (!threadId) return null;
-  const days = [new Date(startedAt), new Date(startedAt + 86400000)];
+  const days = [-1, 0, 1].map((offset) => new Date(startedAt + offset * 86400000));
   for (const day of days) {
     const dir = path.join(
       home,

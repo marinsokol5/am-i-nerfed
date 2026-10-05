@@ -266,7 +266,8 @@ export function permittedCommand(command) {
   if (started) tokens.push(token);
   if (
     tokens.length === 3 &&
-    /^(?:\/(?:bin|usr\/bin)\/)?(?:bash|zsh|sh)$/.test(tokens[0]) &&
+    // The login shell may live anywhere, for example /opt/homebrew/bin/bash.
+    /^(?:\/(?:[^/\s]+\/)*)?(?:bash|zsh|sh|dash)$/.test(tokens[0]) &&
     ["-lc", "-c"].includes(tokens[1])
   )
     return permittedCommand(tokens[2]);
@@ -801,6 +802,10 @@ export async function runAssessment(options) {
         fs.copyFileSync(session, options.transcript);
         fs.chmodSync(options.transcript, 0o600);
       }
+      // Without its session log, the model, effort, instructions and token
+      // counts of a Codex run cannot be checked.
+      if (execution.threadId && !execution.nativeEvidence)
+        execution.failure = "Codex session log not found";
       if (execution.nativeEvidence?.instructionFileMessages)
         execution.failure =
           "Personal or project instruction files were loaded into the clean assessment";

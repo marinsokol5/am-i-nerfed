@@ -22,6 +22,22 @@
     "prepack": "node scripts/skill-version.js --check"
   },
   "license": "MIT",
+  "author": "Marin Sokol",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/marinsokol5/am-i-nerfed.git"
+  },
+  "homepage": "https://github.com/marinsokol5/am-i-nerfed#readme",
+  "bugs": "https://github.com/marinsokol5/am-i-nerfed/issues",
+  "keywords": [
+    "llm",
+    "benchmark",
+    "evaluation",
+    "reasoning",
+    "claude-code",
+    "codex",
+    "agent-skill"
+  ],
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.131.0"
   }
