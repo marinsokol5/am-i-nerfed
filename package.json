@@ -21,9 +21,6 @@
     "version": "node scripts/skill-version.js",
     "prepack": "node scripts/skill-version.js --check"
   },
-  "dependencies": {
-    "skills": "1.7.0"
-  },
   "license": "MIT",
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.131.0"

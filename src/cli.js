@@ -20,7 +20,6 @@ import {
   destroyHistory,
 } from "./assessment.js";
 import { clientCommand, runAssessment } from "./runner.js";
-import { installSkill } from "./install.js";
 import {
   formatRun,
   formatQuestion,
@@ -53,7 +52,6 @@ const help = `am-i-nerfed — private reasoning assessments
   history destroy --yes
   reset --yes
   doctor [--init]
-  skill install [--yes] [--agent NAME] [--global|--project] [--copy]
   --version
 
 Six tasks per assessment; default medium difficulty and 180 seconds.
@@ -192,17 +190,6 @@ export async function main(args = process.argv.slice(2)) {
   }
   if (command === "--version") {
     process.stdout.write(appVersion() + "\n");
-    return;
-  }
-  if (command === "skill") {
-    if (rest[0] !== "install") throw Error("Use skill install");
-    const opts = options(
-      rest.slice(1),
-      ["--agent"],
-      ["--yes", "--global", "--project", "--copy"],
-    );
-    if (opts["--agent"]) opts["--agent"] = [opts["--agent"]];
-    print({ skill: await installSkill(opts) });
     return;
   }
   if (command === "doctor") {
