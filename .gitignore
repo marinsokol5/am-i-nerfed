@@ -13,4 +13,6 @@ __pycache__/
 skills-lock.json
 
 # Evaluation transcripts contain private task text.
-eval/run-*/*transcript-*
+**/*transcript-*.jsonl
+
+TENETS.original.md
