@@ -3,7 +3,11 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { durationSeconds } from "./duration.js";
-import { codexEnvironment, codexEvidence } from "./codex-context.js";
+import {
+  codexEnvironment,
+  codexEvidence,
+  codexSessionFile,
+} from "./codex-context.js";
 import { spawn, spawnSync } from "node:child_process";
 import {
   withLock,
@@ -262,10 +266,40 @@ export function signalGroup(child, signal) {
     if (e.code !== "ESRCH") throw e;
   }
 }
+// Exact input and cache tokens of every streamed Claude response. Output is
+// estimated at about four characters per token where no count is reported.
+function streamUsage(responses, thinkingEstimate, thinkingChars, visibleChars) {
+  if (!responses.size) return null;
+  const sum = (field) =>
+    [...responses.values()].reduce(
+      (total, usage) => total + (Number(usage[field]) || 0),
+      0,
+    );
+  return {
+    responses: responses.size,
+    input_tokens: sum("input_tokens"),
+    cache_creation_input_tokens: sum("cache_creation_input_tokens"),
+    cache_read_input_tokens: sum("cache_read_input_tokens"),
+    estimated_output_tokens: Math.max(
+      sum("output_tokens"),
+      Math.round(Math.max(thinkingEstimate, thinkingChars / 4) + visibleChars / 4),
+    ),
+  };
+}
 export async function supervise(
   executable,
   args,
-  { cwd, env, prompt, deadline, onEvent, isFinished, startupMs = 90000 },
+  {
+    cwd,
+    env,
+    prompt,
+    deadline,
+    onEvent,
+    isFinished,
+    startupMs = 90000,
+    graceMs = 0,
+    transcript,
+  },
 ) {
   const child = spawn(executable, args, {
     cwd,
@@ -273,6 +307,7 @@ export async function supervise(
     detached: true,
     stdio: ["pipe", "pipe", "pipe"],
   });
+  const transcriptFd = transcript ? fs.openSync(transcript, "w", 0o600) : null;
   let reason = null,
     failure = null,
     buffer = "",
@@ -280,20 +315,35 @@ export async function supervise(
     terminal = false,
     threadId = null,
     killTimer,
+    graceTimer,
     stoppedAt;
   const observedModels = new Set(),
     observedEfforts = new Set(),
     started = Date.now();
+  // Claude streams each response's input and cache tokens exactly but only a
+  // starting output count; thinking progress and visible output estimate it.
+  const responses = new Map();
+  let thinkingEstimate = 0,
+    thinkingChars = 0,
+    visibleChars = 0;
   const firstDeadline = deadline();
   const monotonicEnd = firstDeadline
     ? performance.now() + Math.max(0, firstDeadline - Date.now())
     : Infinity;
+  const kill = () => {
+    if (killTimer) return;
+    signalGroup(child, "SIGTERM");
+    killTimer = setTimeout(() => signalGroup(child, "SIGKILL"), 200);
+  };
+  // A closed run may let the client end its turn for graceMs, so it reports
+  // exact usage. Answers after the deadline are already rejected.
   const stop = (why) => {
     if (reason) return;
     reason = why;
     stoppedAt = Date.now();
-    signalGroup(child, "SIGTERM");
-    killTimer = setTimeout(() => signalGroup(child, "SIGKILL"), 200);
+    if (graceMs > 0 && ["finished", "deadline"].includes(why) && !terminal)
+      graceTimer = setTimeout(kill, graceMs);
+    else kill();
   };
   const interrupt = () => stop("cancelled");
   process.once("SIGINT", interrupt);
@@ -327,6 +377,7 @@ export async function supervise(
     while ((newline = buffer.indexOf("\n")) >= 0) {
       const line = buffer.slice(0, newline);
       buffer = buffer.slice(newline + 1);
+      if (transcriptFd !== null) fs.writeSync(transcriptFd, line + "\n");
       let e;
       try {
         e = JSON.parse(line);
@@ -338,6 +389,20 @@ export async function supervise(
       if (typeof e.message?.model === "string")
         observedModels.add(e.message.model);
       if (typeof e.effort === "string") observedEfforts.add(e.effort);
+      if (e.type === "system" && e.subtype === "thinking_tokens")
+        thinkingEstimate += Number(e.estimated_tokens_delta) || 0;
+      if (e.type === "assistant") {
+        if (e.message?.id && e.message.usage)
+          responses.set(e.message.id, e.message.usage);
+        for (const block of e.message?.content ?? []) {
+          if (block.type === "thinking")
+            thinkingChars += String(block.thinking ?? "").length;
+          else if (block.type === "text")
+            visibleChars += String(block.text ?? "").length;
+          else if (block.type === "tool_use")
+            visibleChars += JSON.stringify(block.input ?? {}).length;
+        }
+      }
       const calls = [];
       if (e.item?.type === "command_execution") calls.push(e.item.command);
       if (e.type === "assistant")
@@ -372,6 +437,11 @@ export async function supervise(
         terminal = true;
         usage = e.usage ?? null;
         stop("finished");
+        // A client that reports within its grace period has nothing left to do.
+        if (graceTimer) {
+          clearTimeout(graceTimer);
+          kill();
+        }
       }
       onEvent?.(e);
     }
@@ -386,6 +456,11 @@ export async function supervise(
     child.on("close", (exitCode, signal) => resolve({ exitCode, signal }));
   });
   clearInterval(watch);
+  clearTimeout(graceTimer);
+  if (transcriptFd !== null) {
+    if (buffer) fs.writeSync(transcriptFd, buffer);
+    fs.closeSync(transcriptFd);
+  }
   process.off("SIGINT", interrupt);
   process.off("SIGTERM", interrupt);
   if (!reason) {
@@ -412,6 +487,12 @@ export async function supervise(
     failure,
     cleanupFailure,
     usage,
+    streamUsage: streamUsage(
+      responses,
+      thinkingEstimate,
+      thinkingChars,
+      visibleChars,
+    ),
     terminal,
     threadId,
     stoppedAt: stoppedAt ?? Date.now(),
@@ -452,6 +533,9 @@ export async function runAssessment(options) {
   if (!["native", "none"].includes(systemPrompt))
     throw Error("Invalid system prompt mode");
   const seconds = durationSeconds(options.seconds);
+  const graceSeconds = options.graceSeconds ?? 0;
+  if (!Number.isSafeInteger(graceSeconds) || graceSeconds < 0 || graceSeconds > 300)
+    throw Error("--grace-seconds must be an integer from 0 to 300");
   const [executable, ...prefix] = clientCommand(agent);
   const version = spawnSync(executable, [...prefix, "--version"], {
     encoding: "utf8",
@@ -530,15 +614,34 @@ export async function runAssessment(options) {
     execution = await supervise(
       executable,
       [...prefix, ...nativeCommand(agent, { ...settings, work, state, instructionsFile })],
-      { cwd: work, env: childEnv, prompt, deadline, isFinished },
+      {
+        cwd: work,
+        env: childEnv,
+        prompt,
+        deadline,
+        isFinished,
+        graceMs: graceSeconds * 1000,
+        transcript: options.transcript,
+      },
     );
     execution.clientVersion = version.stdout.trim();
+    execution.graceSeconds = graceSeconds;
     if (agent === "codex") {
       execution.nativeEvidence = codexEvidence(
         childEnv.CODEX_HOME,
         execution.threadId,
         launchedAt,
       );
+      // The native session log is richer than the client's event stream.
+      const session = codexSessionFile(
+        childEnv.CODEX_HOME,
+        execution.threadId,
+        launchedAt,
+      );
+      if (options.transcript && session) {
+        fs.copyFileSync(session, options.transcript);
+        fs.chmodSync(options.transcript, 0o600);
+      }
       if (execution.nativeEvidence?.instructionFileMessages)
         execution.failure =
           "Personal or project instruction files were loaded into the clean assessment";

@@ -219,6 +219,52 @@ test("first completed turn ends immediately with no follow-up or renewed process
   assert.equal(result.usage.output_tokens, 3);
   assert.ok(result.wallSeconds < 2);
 });
+test("a grace period lets a client report exact usage after the deadline, then stops it", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nerfed-grace-"));
+  try {
+    const transcript = path.join(dir, "transcript.jsonl"),
+      input = { command: "./assessment timer" };
+    const events = [
+      { type: "system", subtype: "thinking_tokens", estimated_tokens_delta: 40 },
+      { type: "assistant", message: { id: "m1", usage: { input_tokens: 5, cache_read_input_tokens: 100, output_tokens: 2 },
+        content: [{ type: "text", text: "x".repeat(40) }] } },
+      { type: "assistant", message: { id: "m1", usage: { input_tokens: 5, cache_read_input_tokens: 100, output_tokens: 2 },
+        content: [{ type: "tool_use", name: "Bash", input }] } },
+    ];
+    const started = Date.now();
+    const result = await supervise(process.execPath, ["-e",
+      `for (const e of ${JSON.stringify(events)}) console.log(JSON.stringify(e));` +
+      `setTimeout(() => console.log(JSON.stringify({type:'result',usage:{output_tokens:77}})), 600);setInterval(()=>{},1000);`,
+    ], {
+      cwd: dir, env: process.env, prompt: "x", transcript,
+      deadline: () => started + 300, graceMs: 5000,
+    });
+    assert.equal(result.reason, "deadline");
+    assert.ok(result.stoppedAt - started < 600, "The run closes at the deadline, before the client reports");
+    assert.equal(result.terminal, true);
+    assert.equal(result.usage.output_tokens, 77);
+    assert.ok(result.wallSeconds < 3, "A client that reports is stopped without waiting out the grace");
+    assert.deepEqual(result.streamUsage, {
+      responses: 1, input_tokens: 5, cache_creation_input_tokens: 0, cache_read_input_tokens: 100,
+      estimated_output_tokens: Math.round(40 + (40 + JSON.stringify(input).length) / 4),
+    });
+    assert.equal(fs.readFileSync(transcript, "utf8").trim().split("\n").length, 4);
+    assert.equal(fs.statSync(transcript).mode & 0o777, 0o600);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+test("a client still working when its grace period ends is stopped", async () => {
+  const started = Date.now();
+  const result = await supervise(process.execPath, ["-e", "setInterval(()=>{},1000)"], {
+    cwd: os.tmpdir(), env: process.env, prompt: "x",
+    deadline: () => started + 200, graceMs: 400,
+  });
+  assert.equal(result.reason, "deadline");
+  assert.equal(result.terminal, false);
+  assert.equal(result.streamUsage, null);
+  assert.ok(result.wallSeconds >= 0.55 && result.wallSeconds < 2.5, String(result.wallSeconds));
+});
 test("client failure and forbidden tool calls invalidate an attempt", async () => {
   for (const event of [
     { type: "result", is_error: true },
@@ -322,6 +368,7 @@ test("packaged runner and transport complete six-task lifecycles at every diffic
       { mode: 0o700 },
     );
     process.env.AM_I_NERFED_CODEX_COMMAND = `${path.join(bin, "launcher")} acct-x`;
+    const transcript = path.join(dir, "transcript.jsonl");
     const bare = await runAssessment({
       agent: "codex",
       model: "fake-model",
@@ -329,9 +376,13 @@ test("packaged runner and transport complete six-task lifecycles at every diffic
       difficulty: "hard",
       seconds: 200,
       systemPrompt: "none",
+      graceSeconds: 2,
+      transcript,
     });
     assert.equal(bare.systemPrompt, "none");
     assert.equal(bare.execution.failure, null);
+    assert.equal(bare.execution.graceSeconds, 2);
+    assert.match(fs.readFileSync(transcript, "utf8"), /"turn\.completed"/);
     assert.deepEqual(
       listHistory(state, { systemPrompt: "none" }).runs.map((r) => r.runId),
       [bare.runId],

@@ -35,7 +35,8 @@ export function codexEnvironment(stateRoot, env) {
   return { ...env, CODEX_HOME: home };
 }
 
-export function codexEvidence(home, threadId, startedAt) {
+// The native session log of one thread, stored under the day it started.
+export function codexSessionFile(home, threadId, startedAt) {
   if (!threadId) return null;
   const days = [new Date(startedAt), new Date(startedAt + 86400000)];
   for (const day of days) {
@@ -48,47 +49,50 @@ export function codexEvidence(home, threadId, startedAt) {
     const name = fs
       .readdirSync(dir)
       .find((n) => n.endsWith(threadId + ".jsonl"));
-    if (!name) continue;
-    const models = new Set(),
-      efforts = new Set();
-    let instructionFileMessages = 0,
-      tokenUsage = null,
-      baseInstructions = null;
-    for (const line of fs
-      .readFileSync(path.join(dir, name), "utf8")
-      .split("\n")) {
-      let event;
-      try {
-        event = JSON.parse(line);
-      } catch {
-        continue;
-      }
-      const payload = event.payload ?? {};
-      if (event.type === "session_meta")
-        baseInstructions = payload.base_instructions?.text ?? baseInstructions;
-      else if (event.type === "turn_context") {
-        if (payload.model) models.add(payload.model);
-        if (payload.effort) efforts.add(payload.effort);
-      } else if (
-        event.type === "response_item" &&
-        payload.type === "message" &&
-        ["user", "developer"].includes(payload.role)
-      ) {
-        instructionFileMessages += (payload.content ?? []).filter((b) =>
-          /^# AGENTS\.md instructions/.test(b.text ?? ""),
-        ).length;
-      } else if (event.type === "event_msg" && payload.type === "token_count") {
-        tokenUsage = payload.info?.total_token_usage ?? tokenUsage;
-      }
-    }
-    return {
-      threadId,
-      models: [...models],
-      efforts: [...efforts],
-      instructionFileMessages,
-      baseInstructions,
-      reportedTokenUsage: tokenUsage,
-    };
+    if (name) return path.join(dir, name);
   }
   return null;
+}
+
+export function codexEvidence(home, threadId, startedAt) {
+  const file = codexSessionFile(home, threadId, startedAt);
+  if (!file) return null;
+  const models = new Set(),
+    efforts = new Set();
+  let instructionFileMessages = 0,
+    tokenUsage = null,
+    baseInstructions = null;
+  for (const line of fs.readFileSync(file, "utf8").split("\n")) {
+    let event;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const payload = event.payload ?? {};
+    if (event.type === "session_meta")
+      baseInstructions = payload.base_instructions?.text ?? baseInstructions;
+    else if (event.type === "turn_context") {
+      if (payload.model) models.add(payload.model);
+      if (payload.effort) efforts.add(payload.effort);
+    } else if (
+      event.type === "response_item" &&
+      payload.type === "message" &&
+      ["user", "developer"].includes(payload.role)
+    ) {
+      instructionFileMessages += (payload.content ?? []).filter((b) =>
+        /^# AGENTS\.md instructions/.test(b.text ?? ""),
+      ).length;
+    } else if (event.type === "event_msg" && payload.type === "token_count") {
+      tokenUsage = payload.info?.total_token_usage ?? tokenUsage;
+    }
+  }
+  return {
+    threadId,
+    models: [...models],
+    efforts: [...efforts],
+    instructionFileMessages,
+    baseInstructions,
+    reportedTokenUsage: tokenUsage,
+  };
 }
