@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-05T09:04:24.781Z",
+  "generatedAt": "2026-10-05T09:12:49.448Z",
   "appVersion": "0.11.0",
   "taskBankVersion": 13,
   "baselineId": "b24557ac-7628-49d6-8f45-34f19ec43122",
@@ -14,8 +14,7 @@
     }
   ],
   "clients": {
-    "claude": "am run claude-ms18",
-    "codex": "codex"
+    "claude": "am run claude-ms18"
   },
   "rows": [
     {
@@ -34,6 +33,7 @@
           "budgetChecks": 0,
           "tokens": {
             "output": 5252,
+            "reasoning": 3857,
             "exact": true,
             "input": 78853
           },
@@ -60,6 +60,7 @@
       "budgetChecks": 0,
       "tokens": {
         "output": 5252,
+        "reasoning": 3857,
         "exact": true,
         "input": 78853
       },

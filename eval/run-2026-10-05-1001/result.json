@@ -1,10 +1,12 @@
 {
-  "generatedAt": "2026-10-05T08:04:53.343Z",
+  "generatedAt": "2026-10-05T09:12:49.236Z",
   "appVersion": "0.11.0",
   "taskBankVersion": 13,
   "baselineId": "b24557ac-7628-49d6-8f45-34f19ec43122",
   "effort": "high",
   "graceSeconds": 30,
+  "maxOutputTokens": null,
+  "systemPrompt": "native",
   "levels": [
     {
       "difficulty": "medium",
@@ -29,8 +31,10 @@
           "percent": 79.37246963562752,
           "timeLeft": 51,
           "answers": 6,
+          "budgetChecks": null,
           "tokens": {
             "output": 6120,
+            "reasoning": 4412,
             "exact": true,
             "input": 104698
           },
@@ -55,8 +59,10 @@
           "percent": 66.66666666666667,
           "timeLeft": 0,
           "answers": 5,
+          "budgetChecks": null,
           "tokens": {
             "output": 1654,
+            "reasoning": 879,
             "input": 116668,
             "exact": true
           },
@@ -80,8 +86,10 @@
       "percent": 79.37246963562752,
       "timeLeft": 51,
       "answers": 6,
+      "budgetChecks": null,
       "tokens": {
         "output": 6120,
+        "reasoning": 4412,
         "exact": true,
         "input": 104698
       },
@@ -100,8 +108,10 @@
       "percent": 66.66666666666667,
       "timeLeft": 0,
       "answers": 5,
+      "budgetChecks": null,
       "tokens": {
         "output": 1654,
+        "reasoning": 879,
         "input": 116668,
         "exact": true
       },

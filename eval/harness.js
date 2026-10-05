@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL("..", import.meta.url));
 const usage = `usage: node eval/harness.js [--config FILE] [--models A,B] [--levels easy,hard]
                           [--max-output-tokens N] [--out DIR] [--dry-run]
-       node eval/harness.js summarize RUN_DIR [--config FILE]`;
+       node eval/harness.js summarize RUN_DIR`;
 
 export const runName = ({ agent, model, difficulty, seconds }) =>
   `${agent}-${model}-${difficulty}-${seconds}`;
@@ -47,14 +47,16 @@ export function tokenUsage(run) {
   if (!execution) return null;
   const native = execution.nativeEvidence?.reportedTokenUsage;
   if (native)
-    return { output: native.output_tokens, input: native.input_tokens, exact: Boolean(execution.terminal) };
+    return { output: native.output_tokens, reasoning: native.reasoning_output_tokens ?? null,
+      input: native.input_tokens, exact: Boolean(execution.terminal) };
   const usage = execution.terminal ? execution.usage : null;
   if (usage?.output_tokens != null)
-    return { output: usage.output_tokens, exact: true,
+    return { output: usage.output_tokens, reasoning: usage.output_tokens_details?.thinking_tokens ?? null, exact: true,
       input: (usage.input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0) };
   const stream = execution.streamUsage;
   if (stream)
-    return { output: stream.estimated_output_tokens, exact: Boolean(stream.exact),
+    return { output: stream.estimated_output_tokens, reasoning: stream.estimated_reasoning_tokens ?? null,
+      exact: Boolean(stream.exact),
       input: stream.input_tokens + stream.cache_creation_input_tokens + stream.cache_read_input_tokens };
   return null;
 }
@@ -110,12 +112,14 @@ export function buildResults(records, config) {
 
 const percent = (value) => (value == null ? "—" : `${value.toFixed(1)}%`);
 const tokens = (usage) => (usage ? `${usage.exact ? "" : "~"}${usage.output.toLocaleString("en-US")}` : "—");
+const reasoning = (usage) => (usage?.reasoning == null ? "—"
+  : `${usage.exact ? "" : "~"}${usage.reasoning.toLocaleString("en-US")} (${usage.output ? Math.round((100 * usage.reasoning) / usage.output) : 0}%)`);
 const levelName = ({ difficulty, seconds }) =>
   `${difficulty[0].toUpperCase()}${difficulty.slice(1)} ${seconds}s`;
 
 export function markdown(results) {
   const header = ["Rank", "Model", ...results.levels.map(levelName), "Average",
-    "Time left (s)", "Output tokens", "Budget checks"];
+    "Time left (s)", "Output tokens", "Reasoning tokens (share)", "Budget checks"];
   const lines = [
     `# Evaluation ${results.generatedAt.slice(0, 16).replace("T", " ")} UTC`,
     "",
@@ -130,16 +134,17 @@ export function markdown(results) {
       row.levels.map((run) => percent(run?.percent)).join(" | ")} | **${percent(row.average)}** | ${
       row.levels.map((run) => run?.timeLeft ?? "—").join(" / ")} | ${
       row.levels.map((run) => tokens(run?.tokens)).join(" / ")} | ${
+      row.levels.map((run) => reasoning(run?.tokens)).join(" / ")} | ${
       row.levels.map((run) => run?.budgetChecks ?? "—").join(" / ")} |`),
     "",
-    `Per-level columns list ${results.levels.map(levelName).join(" / ")}. Time left is the unused allowance when the model ended its turn or was stopped. Output tokens include reasoning; \`~\` marks counts that miss a response cut off by the stop (Codex) or are estimated from the stream (Claude). Budget checks count the model's \`./assessment budget\` calls.`,
+    `Per-level columns list ${results.levels.map(levelName).join(" / ")}. Time left is the unused allowance when the model ended its turn or was stopped. Output tokens include reasoning tokens, whose share of the output is in brackets; \`~\` marks counts that miss a response cut off by the stop (Codex) or estimate it from the stream (Claude). Budget checks count the model's \`./assessment budget\` calls.`,
     "",
     "## Runs",
     "",
-    "| Model | Level | Score | Status | Time left (s) | Answers | Budget checks | Output tokens | Failure | Run |",
-    "|---|---|---:|---|---:|---:|---:|---:|---|---|",
+    "| Model | Level | Score | Status | Time left (s) | Answers | Budget checks | Output tokens | Reasoning tokens (share) | Failure | Run |",
+    "|---|---|---:|---|---:|---:|---:|---:|---:|---|---|",
     ...results.runs.map((run) => `| \`${run.model}\` | ${levelName(run)} | ${percent(run.percent)} | ${run.status}${
-      run.reason ? ` (${run.reason})` : ""} | ${run.timeLeft ?? "—"} | ${run.answers} | ${run.budgetChecks ?? "—"} | ${tokens(run.tokens)} | ${
+      run.reason ? ` (${run.reason})` : ""} | ${run.timeLeft ?? "—"} | ${run.answers} | ${run.budgetChecks ?? "—"} | ${tokens(run.tokens)} | ${reasoning(run.tokens)} | ${
       run.failure ?? ""} | ${run.runId?.slice(0, 8) ?? ""} |`),
     "",
   ];
@@ -151,6 +156,24 @@ function readRecords(dir) {
     .filter((name) => /^record-.*\.json$/.test(name))
     .sort()
     .map((name) => JSON.parse(fs.readFileSync(path.join(dir, name), "utf8")));
+}
+
+/** The settings a run directory was swept with, rebuilt from its records. */
+export function configFromRecords(records) {
+  const levels = [], providers = {}, order = ["easy", "medium", "hard"];
+  for (const { harness } of records) {
+    const { agent, model, difficulty, seconds, provider, command } = harness.run;
+    if (!levels.some((level) => level.difficulty === difficulty && level.seconds === seconds))
+      levels.push({ difficulty, seconds });
+    const name = provider ?? (agent === "claude" ? "anthropic" : "openai");
+    providers[name] ??= { agent, command: command ?? null, models: [] };
+    if (!providers[name].models.includes(model)) providers[name].models.push(model);
+  }
+  levels.sort((a, b) => order.indexOf(a.difficulty) - order.indexOf(b.difficulty) || a.seconds - b.seconds);
+  const first = records[0] ?? {};
+  return { effort: first.harness?.effort, graceSeconds: first.harness?.graceSeconds ?? 0, retries: 0,
+    maxOutputTokens: first.harness?.maxOutputTokens ?? null, graceTokens: first.harness?.graceTokens ?? null,
+    systemPrompt: first.harness?.systemPrompt ?? first.run?.systemPrompt ?? "native", levels, providers };
 }
 
 export function writeResults(dir, config) {
@@ -220,6 +243,14 @@ async function sweep(config, options) {
   }
   const dir = runDirectory(options.out);
   console.log(`Writing ${runs.length} runs to ${path.relative(process.cwd(), dir)}`);
+  // The sweep's own settings, limited to what it runs, for later summaries.
+  const planned = { ...config, levels: config.levels.filter((level) =>
+    runs.some((run) => run.difficulty === level.difficulty && run.seconds === level.seconds)),
+  providers: Object.fromEntries(Object.entries(config.providers).map(([name, provider]) =>
+    [name, { ...provider, models: provider.models.filter((model) => runs.some((run) => run.model === model)) }])
+    .filter(([, provider]) => provider.models.length)) };
+  fs.writeFileSync(path.join(dir, "config.json"), JSON.stringify(planned, null, 2) + "\n");
+  config = planned;
   let stopping = false;
   process.on("SIGINT", () => { stopping = true; });
   for (const run of runs) {
@@ -250,7 +281,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   if (args.includes("--help")) console.log(usage);
   else if (args[0] === "summarize") {
     if (!args[1]) throw Error(usage);
-    const results = writeResults(path.resolve(args[1]), config);
+    const dir = path.resolve(args[1]), saved = path.join(dir, "config.json");
+    const results = writeResults(dir, fs.existsSync(saved) ? loadConfig(saved) : configFromRecords(readRecords(dir)));
     console.log(markdown(results));
   } else
     await sweep(config, {

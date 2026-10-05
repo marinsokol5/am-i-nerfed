@@ -301,7 +301,7 @@ export function signalGroup(child, signal) {
 }
 // Exact input and cache tokens of every streamed Claude response. Output is
 // exact for finished responses and estimated for one cut off by a stop.
-function streamUsage(responses, estimatedOutput, exact) {
+function streamUsage(responses, estimatedOutput, estimatedReasoning, exact) {
   if (!responses.size) return null;
   const sum = (field) =>
     [...responses.values()].reduce(
@@ -314,6 +314,7 @@ function streamUsage(responses, estimatedOutput, exact) {
     cache_creation_input_tokens: sum("cache_creation_input_tokens"),
     cache_read_input_tokens: sum("cache_read_input_tokens"),
     estimated_output_tokens: estimatedOutput,
+    estimated_reasoning_tokens: estimatedReasoning,
     exact,
   };
 }
@@ -366,16 +367,17 @@ export async function supervise(
     current = null,
     outputTokens = null,
     nextBudgetCheck = 0;
-  const inProgress = () =>
-    Math.round(
-      Math.max(thinkingEstimate - current.thinking, current.thinkingChars / 4) +
-        current.visibleChars / 3,
-    );
+  const thinkingInProgress = () =>
+    Math.max(thinkingEstimate - current.thinking, current.thinkingChars / 4);
+  const finishedTotal = (field) =>
+    [...finished.values()].reduce((total, counts) => total + counts[field], 0);
   const estimatedOutput = () => {
     if (finished.size || current)
       return (
-        [...finished.values()].reduce((total, n) => total + n, 0) +
-        (current ? inProgress() : 0)
+        finishedTotal("output") +
+        (current
+          ? Math.round(thinkingInProgress() + current.visibleChars / 3)
+          : 0)
       );
     // Without partial messages, only whole blocks are seen.
     return Math.max(
@@ -386,6 +388,10 @@ export async function supervise(
       Math.round(Math.max(thinkingEstimate, thinkingChars / 4) + visibleChars / 4),
     );
   };
+  const estimatedReasoning = () =>
+    finished.size || current
+      ? finishedTotal("thinking") + (current ? Math.round(thinkingInProgress()) : 0)
+      : Math.round(Math.max(thinkingEstimate, thinkingChars / 4));
   const firstDeadline = deadline();
   const monotonicEnd = firstDeadline
     ? performance.now() + Math.max(0, firstDeadline - Date.now())
@@ -480,7 +486,11 @@ export async function supervise(
       } else if (streamed?.type === "message_delta" && current) {
         const n = Number(streamed.usage?.output_tokens);
         if (Number.isFinite(n)) {
-          finished.set(current.id ?? finished.size, n);
+          finished.set(current.id ?? finished.size, {
+            output: n,
+            thinking:
+              Number(streamed.usage.output_tokens_details?.thinking_tokens) || 0,
+          });
           current = null;
         }
       }
@@ -583,6 +593,7 @@ export async function supervise(
     streamUsage: streamUsage(
       responses,
       estimatedOutput(),
+      estimatedReasoning(),
       finished.size > 0 && !current,
     ),
     outputTokensSeen: maxOutputTokens ? outputTokens : null,

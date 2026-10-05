@@ -6,13 +6,14 @@
 node eval/harness.js --dry-run                       # list the planned runs
 node eval/harness.js                                 # run them all
 node eval/harness.js --models gpt-6-astra --levels hard
-node eval/harness.js summarize eval/run-2026-10-05-1200   # rebuild result.md
+node eval/harness.js summarize eval/run-2026-10-05-1200   # rebuild result.md from the records
 ```
 
 Each sweep writes to `eval/run-<date>-<time>/`:
 
-- `result.md`: models ranked by their mean score over all levels, with time left, output tokens and budget checks per level, then every run. It is rewritten after each run.
+- `result.md`: models ranked by their mean score over all levels, with time left, output tokens, reasoning tokens and their share of the output, and budget checks per level, then every run. It is rewritten after each run.
 - `result.json`: the same data.
+- `config.json`: the settings the sweep ran with. `summarize` uses it, or rebuilds the settings from the records when it is missing.
 - `record-<agent>-<model>-<difficulty>-<seconds>.json`: the full run record, plus the harness settings and progress lines.
 - `transcript-<agent>-<model>-<difficulty>-<seconds>.jsonl`: Claude's stream-json output, or Codex's native session log. Transcripts contain the private task text, so Git ignores them.
 
@@ -33,4 +34,4 @@ A client that fails before the assessment starts is retried `retries` times; its
 
 ## Token counts
 
-Output tokens include reasoning. Exact counts come from the client's own end-of-turn report. A Codex run stopped before it ends its turn reports the last count in its session log, which misses the response that was cut off. Claude's stream reports each finished response's exact output; a Claude run stopped mid-response estimates only that last response. `result.md` marks both with `~`.
+Output tokens include reasoning tokens: Codex's `reasoning_output_tokens` and Claude's `thinking_tokens`, reported per response and at the end of a turn. Exact counts come from the client's own reports. A Codex run stopped before it ends its turn reports the last count in its session log, which misses the response that was cut off. Claude's stream reports each finished response's exact output; a Claude run stopped mid-response estimates only that last response. `result.md` marks both with `~`.
