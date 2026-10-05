@@ -11,3 +11,6 @@ __pycache__/
 
 # Machine-specific skill install lock.
 skills-lock.json
+
+# Evaluation transcripts contain private task text.
+eval/run-*/*transcript-*

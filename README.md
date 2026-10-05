@@ -171,7 +171,7 @@ npm test
 npm pack
 ```
 
-The package contains the runtime and skill. Local research, prior experiments, generated instances, model outputs and caches are ignored by Git and excluded from the package. Tests use synthetic fixtures and fake CLI processes rather than paid model calls. Updating package version synchronizes skill metadata; packing rejects a mismatch.
+The package contains the runtime and skill. Local research, prior experiments, generated instances, model outputs and caches are ignored by Git and excluded from the package. Tests use synthetic fixtures and fake CLI processes rather than paid model calls. [`eval/`](eval/README.md) holds the harness that runs the configured models across all levels and records transcripts, token counts and a results table. Updating package version synchronizes skill metadata; packing rejects a mismatch.
 
 
 post-training!

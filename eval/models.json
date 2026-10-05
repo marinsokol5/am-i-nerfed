@@ -1,0 +1,33 @@
+{
+  "effort": "high",
+  "graceSeconds": 30,
+  "retries": 1,
+  "levels": [
+    { "difficulty": "easy", "seconds": 90 },
+    { "difficulty": "medium", "seconds": 180 },
+    { "difficulty": "hard", "seconds": 360 }
+  ],
+  "providers": {
+    "anthropic": {
+      "agent": "claude",
+      "command": "am run claude-ms18",
+      "models": [
+        "claude-opus-5-5",
+        "claude-sonnet-5-5",
+        "claude-opus-5",
+        "claude-sonnet-5"
+      ]
+    },
+    "openai": {
+      "agent": "codex",
+      "command": null,
+      "models": [
+        "gpt-6.1-sol",
+        "gpt-6-astra",
+        "gpt-6-sol",
+        "gpt-5.6-terra",
+        "gpt-6-luna"
+      ]
+    }
+  }
+}
