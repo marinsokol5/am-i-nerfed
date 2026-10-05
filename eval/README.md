@@ -29,7 +29,7 @@ A client that fails before the assessment starts is retried `retries` times; its
 - `providers.<name>.models`: model IDs.
 - `graceSeconds`: how long a client may keep running after its run closes. Answers after the deadline are still rejected; the grace lets the client end its turn, so Claude reports exact token usage.
 - `retries`: attempts after a client fails to start.
-- `maxOutputTokens`: optional budget of output tokens, including reasoning, for each run (`null` for a time-limited run; `--max-output-tokens N` overrides it). A budget replaces the time wording in the prompt, and each level's `seconds` becomes a safety limit, so set it high enough not to bind. Every command response shows the tokens used, and the prompt asks the model to check `./assessment budget` after every reasoning pass. Once the count passes the budget, answers are rejected and the client may use `graceTokens` more within `graceSeconds` to end its turn. Codex counts after each finished response, so an answer in the response that crosses the budget still counts; Claude's count is an estimate from its streamed thinking progress and output.
+- `maxOutputTokens`: optional budget of output tokens, including reasoning, for each run (`null` for a time-limited run; `--max-output-tokens N` overrides it). A budget replaces the time wording in the prompt, and each level's `seconds` becomes a safety limit, so set it high enough not to bind. Every command response shows the tokens used, and the prompt asks the model to check `./assessment budget` after every reasoning pass. The budget is spent once a model response starts over it, for every client: answers in the response that crosses the budget still count, and later answers are rejected. The client may then use `graceTokens` more within `graceSeconds` to end its turn. Codex and the direct API report counts after each response; Claude Code's stream also gives a live estimate, which only updates the usage shown.
 - `graceTokens`: output tokens a client may use after spending its budget (default 1,000).
 
 ## Token counts
@@ -48,4 +48,4 @@ Output tokens include reasoning tokens: Codex's `reasoning_output_tokens` and Cl
 }
 ```
 
-It uses adaptive thinking at the configured effort, with prompt caching, and reports each response's exact usage. Its thinking is not streamed, so a token budget is checked after each response, as with Codex, and can be exceeded by one response.
+It uses adaptive thinking at the configured effort, with prompt caching, and reports each response's exact usage. Its thinking is not streamed, so its usage updates after each response, as with Codex.

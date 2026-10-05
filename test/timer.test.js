@@ -154,7 +154,10 @@ test("a token budget shows its usage in every response, rejects answers once spe
   assert.equal(saved.output.accepted, true);
   assert.deepEqual(saved.output.outputTokens, { used: 4000, limit: 5000 });
   assert.deepEqual(call("budget").output.outputTokens, { used: 4000, limit: 5000 });
-  fs.writeFileSync(budget, JSON.stringify({ used: 5100, limit: 5000 }));
+  // The response that crosses the budget started within it, so its answer counts.
+  fs.writeFileSync(budget, JSON.stringify({ used: 5100, before: 4000, limit: 5000 }));
+  assert.equal(call("answer", "--task", "medium-1", "--json", "null").output.accepted, true);
+  fs.writeFileSync(budget, JSON.stringify({ used: 5100, before: 5100, limit: 5000 }));
   const late = call("answer", "--task", "medium-1", "--json", "true");
   assert.equal(late.status, 1);
   assert.equal(late.output.accepted, false);
@@ -162,8 +165,8 @@ test("a token budget shows its usage in every response, rejects answers once spe
   assert.deepEqual(late.output.outputTokens, { used: 5100, limit: 5000 });
   assert.notEqual(call("question", "--task", "medium-1").output.submitted, true, "The rejected answer was not saved");
   assert.deepEqual(fs.readFileSync(calls, "utf8").trim().split("\n").map((line) => JSON.parse(line).action),
-    ["answer", "budget", "answer", "question"]);
+    ["answer", "budget", "answer", "answer", "question"]);
   const answers = fs.readFileSync(events, "utf8").trim().split("\n").map((line) => JSON.parse(line))
     .filter((event) => event.action === "answer");
-  assert.deepEqual(answers.map((event) => event.accepted), [true, false]);
+  assert.deepEqual(answers.map((event) => event.accepted), [true, true, false]);
 });

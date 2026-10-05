@@ -20,10 +20,10 @@ export function transport(configPath, args = process.argv.slice(2)) {
   if (config.calls)
     fs.appendFileSync(config.calls, JSON.stringify({ action, time: Date.now() }) + "\n", { mode: 0o600 });
   // With a token budget every response shows the output tokens used so far.
-  const outputTokens = config.budget && {
-    used: fs.existsSync(config.budget.file) ? readJSON(config.budget.file).used : 0,
-    limit: config.budget.limit,
-  };
+  const budget = config.budget && fs.existsSync(config.budget.file) ? readJSON(config.budget.file) : {};
+  const outputTokens = config.budget && { used: budget.used ?? 0, limit: config.budget.limit };
+  // Answers count while the response sending them started within budget.
+  const spent = Boolean(config.budget) && (budget.before ?? budget.used ?? 0) >= config.budget.limit;
   const withBudget = (output) => (outputTokens ? { ...output, outputTokens } : output);
   const opts = {};
   for (let i = 0; i < rest.length; i++) {
@@ -56,7 +56,7 @@ export function transport(configPath, args = process.argv.slice(2)) {
     return;
   }
   // A spent token budget closes answering, as the deadline does.
-  if (action === "answer" && outputTokens && outputTokens.used >= outputTokens.limit) {
+  if (action === "answer" && spent) {
     const run = readJSON(path.join(path.dirname(configPath), "run.json"));
     const clock = assessmentTimer(active(stateRoot()), run.runId);
     fs.appendFileSync(config.events, JSON.stringify({ action, time: Date.now(), runId: run.runId,

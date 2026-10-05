@@ -302,7 +302,26 @@ test("an output budget stops a client whose streamed thinking passes it", async 
   // Usage is checked twice a second, so a busy machine may see a few more deltas.
   assert.ok(result.outputTokensSeen >= 500 && result.outputTokensSeen < 2000, String(result.outputTokensSeen));
   assert.ok(result.wallSeconds < 5, "Without grace tokens a spent budget stops the client at once");
-  assert.ok(seen.length >= 1 && seen.at(-1) === result.outputTokensSeen);
+  assert.ok(seen.length >= 1 && seen.at(-1).used === result.outputTokensSeen);
+});
+test("a response that starts within the budget keeps its answers; the next one closes the run", async () => {
+  const seen = [], started = Date.now();
+  const events = (id, n) => [
+    { type: "stream_event", event: { type: "message_start", message: { id, usage: { input_tokens: 1, output_tokens: 1 } } } },
+    { type: "system", subtype: "thinking_tokens", estimated_tokens_delta: n },
+    ...(n > 0 ? [{ type: "stream_event", event: { type: "message_delta", usage: { output_tokens: n } } }] : []),
+  ];
+  const result = await supervise(process.execPath, ["-e",
+    `const say=(es)=>es.forEach((e)=>console.log(JSON.stringify(e)));say(${JSON.stringify(events("m1", 650))});` +
+    `setTimeout(()=>say(${JSON.stringify(events("m2", 0))}),900);setInterval(()=>{},1000);`,
+  ], {
+    cwd: os.tmpdir(), env: process.env, prompt: "x", deadline: () => started + 60000,
+    graceMs: 300, maxOutputTokens: 500, onOutputTokens: (counts) => seen.push(counts),
+  });
+  assert.equal(result.reason, "budget");
+  assert.ok(result.stoppedAt - started >= 800, "The run closes when the next response starts");
+  assert.ok(seen.some(({ used, before }) => used >= 650 && before === 0), JSON.stringify(seen));
+  assert.deepEqual(seen.at(-1), { used: 650, before: 650 });
 });
 test("a spent budget lets a client use its grace tokens, then stops it", async () => {
   const result = await supervise(process.execPath, ["-e",
@@ -312,8 +331,9 @@ test("a spent budget lets a client use its grace tokens, then stops it", async (
     graceMs: 30000, maxOutputTokens: 500, graceTokens: 300,
   });
   assert.equal(result.reason, "budget");
-  assert.ok(result.outputTokensSeen >= 800 && result.outputTokensSeen < 1100, String(result.outputTokensSeen));
-  assert.ok(result.wallSeconds < 4, String(result.wallSeconds));
+  // Grace tokens count from the usage at closing, which a busy machine checks late.
+  assert.ok(result.outputTokensSeen >= 800 && result.outputTokensSeen < 2500, String(result.outputTokensSeen));
+  assert.ok(result.wallSeconds < 8, String(result.wallSeconds));
 });
 test("an output budget uses the native count when the client reports one", async () => {
   const started = Date.now();

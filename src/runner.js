@@ -366,6 +366,9 @@ export async function supervise(
     visibleChars = 0,
     current = null,
     outputTokens = null,
+    responseStart = 0,
+    budgetBase = null,
+    usedAtClose = null,
     nextBudgetCheck = 0;
   const thinkingInProgress = () =>
     Math.max(thinkingEstimate - current.thinking, current.thinkingChars / 4);
@@ -396,6 +399,24 @@ export async function supervise(
   const monotonicEnd = firstDeadline
     ? performance.now() + Math.max(0, firstDeadline - Date.now())
     : Infinity;
+  // A token budget is spent once a response starts over it: that response's
+  // answers still count, as with Codex, whose count arrives after a response
+  // has run its commands. Claude's start-of-response count stands in for it;
+  // its live estimate only shows the usage. A closed run may then use
+  // graceTokens more output to end its turn.
+  const checkBudget = () => {
+    const used = nativeOutputTokens ? nativeOutputTokens(threadId) : estimatedOutput();
+    if (used == null) return;
+    const before = !nativeOutputTokens && (finished.size || current) ? responseStart : used;
+    if (used !== outputTokens || before !== budgetBase) onOutputTokens?.({ used, before });
+    outputTokens = used;
+    budgetBase = before;
+    if (!reason && before >= maxOutputTokens) {
+      usedAtClose = used;
+      stop("budget");
+    }
+    if (reason === "budget" && used >= usedAtClose + graceTokens) kill();
+  };
   const kill = () => {
     if (killTimer) return;
     signalGroup(child, "SIGTERM");
@@ -424,19 +445,9 @@ export async function supervise(
       failure = "Assessment did not start";
       stop("failed");
     }
-    // An output budget is checked twice a second: Codex counts each finished
-    // response in its session log, Claude streams thinking progress.
     if (maxOutputTokens && !killTimer && performance.now() >= nextBudgetCheck) {
       nextBudgetCheck = performance.now() + 500;
-      const used = nativeOutputTokens
-        ? nativeOutputTokens(threadId)
-        : estimatedOutput();
-      if (used != null && used !== outputTokens) {
-        outputTokens = used;
-        onOutputTokens?.(used);
-      }
-      if (used >= maxOutputTokens) stop("budget");
-      if (used >= maxOutputTokens + graceTokens) kill();
+      checkBudget();
     }
   }, 25);
   child.stderr.resume();
@@ -475,6 +486,8 @@ export async function supervise(
       const streamed = e.type === "stream_event" ? e.event : null;
       if (streamed?.type === "message_start") {
         current = { id: streamed.message?.id, thinking: thinkingEstimate, thinkingChars: 0, visibleChars: 0 };
+        responseStart = finishedTotal("output");
+        if (maxOutputTokens && !killTimer) checkBudget();
         if (typeof streamed.message?.model === "string")
           observedModels.add(streamed.message.model);
       } else if (streamed?.type === "content_block_delta" && current) {
@@ -752,7 +765,8 @@ export async function runAssessment(options) {
             : undefined,
         onOutputTokens:
           budgetFile &&
-          ((used) => writeJSON(budgetFile, { used, limit: maxOutputTokens })),
+          (({ used, before }) =>
+            writeJSON(budgetFile, { used, before, limit: maxOutputTokens })),
       },
     );
     execution.clientVersion = version.stdout.trim();
