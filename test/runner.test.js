@@ -248,13 +248,31 @@ test("a grace period lets a client report exact usage after the deadline, then s
     assert.ok(result.wallSeconds < 3, "A client that reports is stopped without waiting out the grace");
     assert.deepEqual(result.streamUsage, {
       responses: 1, input_tokens: 5, cache_creation_input_tokens: 0, cache_read_input_tokens: 100,
-      estimated_output_tokens: Math.round(40 + (40 + JSON.stringify(input).length) / 4),
+      estimated_output_tokens: Math.round(40 + (40 + JSON.stringify(input).length) / 4), exact: false,
     });
     assert.equal(fs.readFileSync(transcript, "utf8").trim().split("\n").length, 4);
     assert.equal(fs.statSync(transcript).mode & 0o777, 0o600);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+test("partial messages count each finished Claude response exactly and estimate only the one in progress", async () => {
+  const response = (id, n) => [
+    { type: "stream_event", event: { type: "message_start", message: { id, model: "claude-x", usage: { input_tokens: 2, output_tokens: 1 } } } },
+    { type: "stream_event", event: { type: "content_block_delta", delta: { type: "text_delta", text: "y".repeat(30) } } },
+    { type: "assistant", message: { id, usage: { input_tokens: 2, output_tokens: 1 }, content: [{ type: "text", text: "y".repeat(30) }] } },
+    ...(n == null ? [] : [{ type: "stream_event", event: { type: "message_delta", usage: { output_tokens: n } } }]),
+  ];
+  const run = (events) => supervise(process.execPath, ["-e",
+    `for (const e of ${JSON.stringify(events)}) console.log(JSON.stringify(e));setInterval(()=>{},1000)`,
+  ], { cwd: os.tmpdir(), env: process.env, prompt: "x", deadline: () => Date.now() + 600 });
+  const done = await run([...response("m1", 120), ...response("m2", 80)]);
+  assert.deepEqual([done.streamUsage.estimated_output_tokens, done.streamUsage.exact], [200, true]);
+  assert.deepEqual(done.observedModels, ["claude-x"]);
+  const [start, ...rest] = response("m2", null);
+  const cut = await run([...response("m1", 120), start,
+    { type: "system", subtype: "thinking_tokens", estimated_tokens_delta: 50 }, ...rest]);
+  assert.deepEqual([cut.streamUsage.estimated_output_tokens, cut.streamUsage.exact], [120 + 50 + 10, false]);
 });
 test("a client still working when its grace period ends is stopped", async () => {
   const started = Date.now();

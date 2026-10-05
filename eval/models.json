@@ -1,5 +1,6 @@
 {
   "effort": "high",
+  "systemPrompt": "none",
   "graceSeconds": 30,
   "retries": 1,
   "maxOutputTokens": null,

@@ -21,6 +21,7 @@ A client that fails before the assessment starts is retried `retries` times; its
 ## Configuration
 
 - `effort`: reasoning effort for every run.
+- `systemPrompt`: `none` replaces each client's built-in system prompt with "Follow the user's instructions.", so the model sees only our prompt, its shell tool and Codex's environment context; `native` keeps the client's own prompt.
 - `levels`: `{ difficulty, seconds }` pairs.
 - `providers.<name>.agent`: `claude` or `codex`.
 - `providers.<name>.command`: client command, for example `am run claude-ms18`; `null` uses the plain client.
@@ -32,4 +33,4 @@ A client that fails before the assessment starts is retried `retries` times; its
 
 ## Token counts
 
-Output tokens include reasoning. Exact counts come from the client's own end-of-turn report. A Codex run stopped before it ends its turn reports the last count in its session log, which misses the response that was cut off. A Claude run stopped mid-turn reports exact input tokens but an output estimate from its stream. `result.md` marks both with `~`.
+Output tokens include reasoning. Exact counts come from the client's own end-of-turn report. A Codex run stopped before it ends its turn reports the last count in its session log, which misses the response that was cut off. Claude's stream reports each finished response's exact output; a Claude run stopped mid-response estimates only that last response. `result.md` marks both with `~`.

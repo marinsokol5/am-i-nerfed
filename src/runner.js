@@ -96,6 +96,7 @@ export function nativeCommand(agent, opts) {
       "--no-session-persistence",
       "--output-format",
       "stream-json",
+      "--include-partial-messages",
       "--verbose",
       "--tools",
       "Bash",
@@ -294,8 +295,8 @@ export function signalGroup(child, signal) {
   }
 }
 // Exact input and cache tokens of every streamed Claude response. Output is
-// estimated at about four characters per token where no count is reported.
-function streamUsage(responses, estimatedOutput) {
+// exact for finished responses and estimated for one cut off by a stop.
+function streamUsage(responses, estimatedOutput, exact) {
   if (!responses.size) return null;
   const sum = (field) =>
     [...responses.values()].reduce(
@@ -308,6 +309,7 @@ function streamUsage(responses, estimatedOutput) {
     cache_creation_input_tokens: sum("cache_creation_input_tokens"),
     cache_read_input_tokens: sum("cache_read_input_tokens"),
     estimated_output_tokens: estimatedOutput,
+    exact,
   };
 }
 export async function supervise(
@@ -348,22 +350,37 @@ export async function supervise(
   const observedModels = new Set(),
     observedEfforts = new Set(),
     started = Date.now();
-  // Claude streams each response's input and cache tokens exactly but only a
-  // starting output count; thinking progress and visible output estimate it.
-  const responses = new Map();
+  // Claude streams each response's input and cache tokens exactly. Partial
+  // messages report each finished response's exact output; the response in
+  // progress is estimated from thinking progress and streamed characters.
+  const responses = new Map(),
+    finished = new Map();
   let thinkingEstimate = 0,
     thinkingChars = 0,
     visibleChars = 0,
+    current = null,
     outputTokens = null,
     nextBudgetCheck = 0;
-  const estimatedOutput = () =>
-    Math.max(
+  const inProgress = () =>
+    Math.round(
+      Math.max(thinkingEstimate - current.thinking, current.thinkingChars / 4) +
+        current.visibleChars / 3,
+    );
+  const estimatedOutput = () => {
+    if (finished.size || current)
+      return (
+        [...finished.values()].reduce((total, n) => total + n, 0) +
+        (current ? inProgress() : 0)
+      );
+    // Without partial messages, only whole blocks are seen.
+    return Math.max(
       [...responses.values()].reduce(
         (total, usage) => total + (Number(usage.output_tokens) || 0),
         0,
       ),
       Math.round(Math.max(thinkingEstimate, thinkingChars / 4) + visibleChars / 4),
     );
+  };
   const firstDeadline = deadline();
   const monotonicEnd = firstDeadline
     ? performance.now() + Math.max(0, firstDeadline - Date.now())
@@ -444,6 +461,24 @@ export async function supervise(
       if (typeof e.effort === "string") observedEfforts.add(e.effort);
       if (e.type === "system" && e.subtype === "thinking_tokens")
         thinkingEstimate += Number(e.estimated_tokens_delta) || 0;
+      const streamed = e.type === "stream_event" ? e.event : null;
+      if (streamed?.type === "message_start") {
+        current = { id: streamed.message?.id, thinking: thinkingEstimate, thinkingChars: 0, visibleChars: 0 };
+        if (typeof streamed.message?.model === "string")
+          observedModels.add(streamed.message.model);
+      } else if (streamed?.type === "content_block_delta" && current) {
+        const delta = streamed.delta ?? {};
+        if (delta.type === "thinking_delta")
+          current.thinkingChars += String(delta.thinking ?? "").length;
+        else
+          current.visibleChars += String(delta.text ?? delta.partial_json ?? "").length;
+      } else if (streamed?.type === "message_delta" && current) {
+        const n = Number(streamed.usage?.output_tokens);
+        if (Number.isFinite(n)) {
+          finished.set(current.id ?? finished.size, n);
+          current = null;
+        }
+      }
       if (e.type === "assistant") {
         if (e.message?.id && e.message.usage)
           responses.set(e.message.id, e.message.usage);
@@ -540,7 +575,11 @@ export async function supervise(
     failure,
     cleanupFailure,
     usage,
-    streamUsage: streamUsage(responses, estimatedOutput()),
+    streamUsage: streamUsage(
+      responses,
+      estimatedOutput(),
+      finished.size > 0 && !current,
+    ),
     outputTokensSeen: maxOutputTokens ? outputTokens : null,
     terminal,
     threadId,
