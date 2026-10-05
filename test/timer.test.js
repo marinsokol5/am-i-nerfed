@@ -123,3 +123,17 @@ test("supervised timer transport uses its bound run without updating run or even
   assert.ok(timer.remainingSeconds > 0 && timer.remainingSeconds <= 500);
   assert.deepEqual(snapshot(f.root), before);
 });
+
+test("supervised timer transport reports an output budget's usage", t => {
+  const f = fixture(t), run = startAssessment(f.state, { seconds: 500 });
+  const config = path.join(f.cwd, "transport.json"), budget = path.join(f.cwd, "budget.json");
+  fs.writeFileSync(config, JSON.stringify({ state: f.home, events: path.join(f.cwd, "events.jsonl"),
+    budget: { file: budget, limit: 5000 } }));
+  fs.writeFileSync(path.join(f.cwd, "run.json"), JSON.stringify({ runId: run.runId }));
+  const source = `import {transport} from ${JSON.stringify(transportModule)};transport(${JSON.stringify(config)},['timer']);`;
+  const timer = () => JSON.parse(spawnSync(process.execPath, ["--input-type=module", "-e", source], {
+    cwd: f.cwd, encoding: "utf8" }).stdout);
+  assert.deepEqual(timer().outputTokens, { used: 0, limit: 5000 });
+  fs.writeFileSync(budget, JSON.stringify({ used: 1234, limit: 5000 }));
+  assert.deepEqual(timer().outputTokens, { used: 1234, limit: 5000 });
+});

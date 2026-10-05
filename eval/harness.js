@@ -8,7 +8,8 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const usage = `usage: node eval/harness.js [--config FILE] [--models A,B] [--levels easy,hard] [--out DIR] [--dry-run]
+const usage = `usage: node eval/harness.js [--config FILE] [--models A,B] [--levels easy,hard]
+                          [--max-output-tokens N] [--out DIR] [--dry-run]
        node eval/harness.js summarize RUN_DIR [--config FILE]`;
 
 export const runName = ({ agent, model, difficulty, seconds }) =>
@@ -22,7 +23,7 @@ export function loadConfig(file) {
   for (const [name, provider] of Object.entries(config.providers ?? {}))
     if (!["claude", "codex"].includes(provider.agent) || !Array.isArray(provider.models))
       throw Error(`Provider ${name} needs agent claude|codex and a models list`);
-  return { graceSeconds: 0, retries: 1, ...config };
+  return { graceSeconds: 0, retries: 1, maxOutputTokens: null, ...config };
 }
 
 /** Every planned run, providers in config order, each model at every level. */
@@ -91,6 +92,7 @@ export function buildResults(records, config) {
     baselineId: first?.baselineId ?? null,
     effort: config.effort,
     graceSeconds: config.graceSeconds,
+    maxOutputTokens: config.maxOutputTokens,
     levels: config.levels,
     clients: Object.fromEntries(Object.values(config.providers)
       .map((provider) => [provider.agent, provider.command ?? provider.agent])),
@@ -110,7 +112,8 @@ export function markdown(results) {
   const lines = [
     `# Evaluation ${results.generatedAt.slice(0, 16).replace("T", " ")} UTC`,
     "",
-    `am-i-nerfed ${results.appVersion ?? "?"} · task bank v${results.taskBankVersion ?? "?"} · baseline ${results.baselineId?.slice(0, 8) ?? "?"} · effort ${results.effort} · grace ${results.graceSeconds}s`,
+    `am-i-nerfed ${results.appVersion ?? "?"} · task bank v${results.taskBankVersion ?? "?"} · baseline ${results.baselineId?.slice(0, 8) ?? "?"} · effort ${results.effort} · grace ${results.graceSeconds}s${
+      results.maxOutputTokens ? ` · output budget ${results.maxOutputTokens.toLocaleString("en-US")} tokens` : ""}`,
     "",
     `Clients: ${Object.entries(results.clients).map(([agent, command]) => `${agent} \`${command}\``).join(" · ")}`,
     "",
@@ -167,7 +170,8 @@ function attempt(run, config, dir, number) {
   const transcript = path.join(dir, `transcript-${name}.jsonl`);
   const args = [path.join(root, "bin", "am-i-nerfed.js"), "run", "--agent", run.agent, "--model", run.model,
     "--effort", config.effort, "--difficulty", run.difficulty, "--seconds", String(run.seconds),
-    "--grace-seconds", String(config.graceSeconds), "--transcript", transcript, "--verbose"];
+    "--grace-seconds", String(config.graceSeconds), "--transcript", transcript, "--verbose",
+    ...(config.maxOutputTokens ? ["--max-output-tokens", String(config.maxOutputTokens)] : [])];
   const env = { ...process.env };
   if (run.command) env[`AM_I_NERFED_${run.agent.toUpperCase()}_COMMAND`] = run.command;
   const startedAt = new Date().toISOString(), progress = [];
@@ -186,8 +190,8 @@ function attempt(run, config, dir, number) {
       let parsed = null;
       try { parsed = JSON.parse(stdout); } catch { /* recorded as an error below */ }
       const record = {
-        harness: { run, attempt: number, startedAt, exitCode, progress,
-          command: run.command ?? run.agent, effort: config.effort, graceSeconds: config.graceSeconds },
+        harness: { run, attempt: number, startedAt, exitCode, progress, command: run.command ?? run.agent,
+          effort: config.effort, graceSeconds: config.graceSeconds, maxOutputTokens: config.maxOutputTokens },
         run: parsed,
         error: parsed ? null : stderr.trim().split("\n").slice(-5).join("\n") || "No run record",
       };
@@ -231,6 +235,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     return i >= 0 ? args[i + 1] : undefined;
   };
   const config = loadConfig(path.resolve(value("--config") ?? path.join(root, "eval", "models.json")));
+  if (value("--max-output-tokens")) config.maxOutputTokens = Number(value("--max-output-tokens"));
   if (args.includes("--help")) console.log(usage);
   else if (args[0] === "summarize") {
     if (!args[1]) throw Error(usage);

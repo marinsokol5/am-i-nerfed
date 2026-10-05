@@ -96,3 +96,20 @@ export function codexEvidence(home, threadId, startedAt) {
     reportedTokenUsage: tokenUsage,
   };
 }
+
+// The latest cumulative token count in a native session log, which Codex
+// writes after each model response.
+export function latestTokenUsage(file) {
+  if (!file || !fs.existsSync(file)) return null;
+  const lines = fs.readFileSync(file, "utf8").trimEnd().split("\n");
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (!lines[i].includes('"token_count"')) continue;
+    try {
+      const usage = JSON.parse(lines[i]).payload?.info?.total_token_usage;
+      if (usage) return usage;
+    } catch {
+      // A line still being written is incomplete; an earlier count stands.
+    }
+  }
+  return null;
+}

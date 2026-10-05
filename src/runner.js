@@ -7,6 +7,7 @@ import {
   codexEnvironment,
   codexEvidence,
   codexSessionFile,
+  latestTokenUsage,
 } from "./codex-context.js";
 import { spawn, spawnSync } from "node:child_process";
 import {
@@ -29,11 +30,11 @@ export const MINIMAL_SYSTEM_PROMPT = "Follow the user's instructions.";
 
 // Keep in sync with skills/am-i-nerfed/SKILL.md (## Rules, ## Assessment);
 // only the CLI-specific parts may differ. See AGENTS.md.
-export function examPrompt({ seconds = 120, difficulty = "medium" } = {}) {
+export function examPrompt({ seconds = 120, difficulty = "medium", maxOutputTokens } = {}) {
   return `## Rules
 
 - You have limited ${seconds} seconds to complete, as well as you can, the six ${difficulty} tasks; the timer started when this session launched and is exposed to you at any moment through \`./assessment timer\`.
-- Solve by reasoning only -> no code calculations, browsing, file inspection, prior answers, outside models or delegation. Only the assessment commands below are permitted for retrieving questions, answering and checking time.
+${maxOutputTokens ? `- Your output, including reasoning, is limited to ${maxOutputTokens} tokens. The assessment stops as soon as you exceed it; \`./assessment timer\` also shows how many you have used.\n` : ""}- Solve by reasoning only -> no code calculations, browsing, file inspection, prior answers, outside models or delegation. Only the assessment commands below are permitted for retrieving questions, answering and checking time.
 - No correctness feedback is returned while an assessment is active.
 - It's highly recommended to attempt all tasks before spending the remaining time on refinements. Use short reasoning passes and partial answers to avoid losing work. Partially correct answers influence final score, so saving something early is worth it.
 - There is no reward for finishing the assessment early or for stopping work with the timer still ticking. Saved answers are kept; being mid-thought when time runs out costs nothing.
@@ -268,7 +269,7 @@ export function signalGroup(child, signal) {
 }
 // Exact input and cache tokens of every streamed Claude response. Output is
 // estimated at about four characters per token where no count is reported.
-function streamUsage(responses, thinkingEstimate, thinkingChars, visibleChars) {
+function streamUsage(responses, estimatedOutput) {
   if (!responses.size) return null;
   const sum = (field) =>
     [...responses.values()].reduce(
@@ -280,10 +281,7 @@ function streamUsage(responses, thinkingEstimate, thinkingChars, visibleChars) {
     input_tokens: sum("input_tokens"),
     cache_creation_input_tokens: sum("cache_creation_input_tokens"),
     cache_read_input_tokens: sum("cache_read_input_tokens"),
-    estimated_output_tokens: Math.max(
-      sum("output_tokens"),
-      Math.round(Math.max(thinkingEstimate, thinkingChars / 4) + visibleChars / 4),
-    ),
+    estimated_output_tokens: estimatedOutput,
   };
 }
 export async function supervise(
@@ -299,6 +297,9 @@ export async function supervise(
     startupMs = 90000,
     graceMs = 0,
     transcript,
+    maxOutputTokens,
+    nativeOutputTokens,
+    onOutputTokens,
   },
 ) {
   const child = spawn(executable, args, {
@@ -325,7 +326,17 @@ export async function supervise(
   const responses = new Map();
   let thinkingEstimate = 0,
     thinkingChars = 0,
-    visibleChars = 0;
+    visibleChars = 0,
+    outputTokens = null,
+    nextBudgetCheck = 0;
+  const estimatedOutput = () =>
+    Math.max(
+      [...responses.values()].reduce(
+        (total, usage) => total + (Number(usage.output_tokens) || 0),
+        0,
+      ),
+      Math.round(Math.max(thinkingEstimate, thinkingChars / 4) + visibleChars / 4),
+    );
   const firstDeadline = deadline();
   const monotonicEnd = firstDeadline
     ? performance.now() + Math.max(0, firstDeadline - Date.now())
@@ -356,6 +367,19 @@ export async function supervise(
     else if (!end && Date.now() - started >= startupMs) {
       failure = "Assessment did not start";
       stop("failed");
+    }
+    // An output budget is checked twice a second: Codex counts each finished
+    // response in its session log, Claude streams thinking progress.
+    if (maxOutputTokens && !reason && performance.now() >= nextBudgetCheck) {
+      nextBudgetCheck = performance.now() + 500;
+      const used = nativeOutputTokens
+        ? nativeOutputTokens(threadId)
+        : estimatedOutput();
+      if (used != null && used !== outputTokens) {
+        outputTokens = used;
+        onOutputTokens?.(used);
+      }
+      if (used >= maxOutputTokens) stop("budget");
     }
   }, 25);
   child.stderr.resume();
@@ -487,12 +511,8 @@ export async function supervise(
     failure,
     cleanupFailure,
     usage,
-    streamUsage: streamUsage(
-      responses,
-      thinkingEstimate,
-      thinkingChars,
-      visibleChars,
-    ),
+    streamUsage: streamUsage(responses, estimatedOutput()),
+    outputTokensAtStop: maxOutputTokens ? outputTokens : null,
     terminal,
     threadId,
     stoppedAt: stoppedAt ?? Date.now(),
@@ -534,6 +554,12 @@ export async function runAssessment(options) {
     throw Error("Invalid system prompt mode");
   const seconds = durationSeconds(options.seconds);
   const graceSeconds = options.graceSeconds ?? 0;
+  const maxOutputTokens = options.maxOutputTokens;
+  if (
+    maxOutputTokens !== undefined &&
+    (!Number.isSafeInteger(maxOutputTokens) || maxOutputTokens < 1)
+  )
+    throw Error("--max-output-tokens must be a positive integer");
   if (!Number.isSafeInteger(graceSeconds) || graceSeconds < 0 || graceSeconds > 300)
     throw Error("--grace-seconds must be an integer from 0 to 300");
   const [executable, ...prefix] = clientCommand(agent);
@@ -558,7 +584,8 @@ export async function runAssessment(options) {
   privateDirectory(work);
   const events = path.join(work, "events.jsonl"),
     config = path.join(work, "transport.json"),
-    runFile = path.join(work, "run.json");
+    runFile = path.join(work, "run.json"),
+    budgetFile = maxOutputTokens ? path.join(work, "budget.json") : null;
   const settings = {
     ...options,
     seconds,
@@ -577,6 +604,7 @@ export async function runAssessment(options) {
     events,
     options: settings,
     startedAt: launchedAt,
+    budget: budgetFile && { file: budgetFile, limit: maxOutputTokens },
   });
   const moduleURL = new URL("./runner-transport.js", import.meta.url).href;
   const transportSource = `import {transport} from ${JSON.stringify(moduleURL)}; try { transport(${JSON.stringify(config)},process.argv.slice(1)); } catch(e) { console.error(e.message); process.exitCode=1; }`;
@@ -622,10 +650,22 @@ export async function runAssessment(options) {
         isFinished,
         graceMs: graceSeconds * 1000,
         transcript: options.transcript,
+        maxOutputTokens,
+        nativeOutputTokens:
+          agent === "codex"
+            ? (threadId) =>
+                latestTokenUsage(
+                  codexSessionFile(childEnv.CODEX_HOME, threadId, launchedAt),
+                )?.output_tokens ?? null
+            : undefined,
+        onOutputTokens:
+          budgetFile &&
+          ((used) => writeJSON(budgetFile, { used, limit: maxOutputTokens })),
       },
     );
     execution.clientVersion = version.stdout.trim();
     execution.graceSeconds = graceSeconds;
+    execution.maxOutputTokens = maxOutputTokens ?? null;
     if (agent === "codex") {
       execution.nativeEvidence = codexEvidence(
         childEnv.CODEX_HOME,

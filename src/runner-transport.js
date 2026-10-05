@@ -42,7 +42,13 @@ export function transport(configPath, args = process.argv.slice(2)) {
   process.env.AM_I_NERFED_HOME = config.state;
   if (action === "timer") {
     const run = readJSON(path.join(path.dirname(configPath), "run.json"));
-    process.stdout.write(JSON.stringify(assessmentTimer(active(stateRoot()), run.runId)) + "\n");
+    const timer = assessmentTimer(active(stateRoot()), run.runId);
+    if (config.budget)
+      timer.outputTokens = {
+        used: fs.existsSync(config.budget.file) ? readJSON(config.budget.file).used : 0,
+        limit: config.budget.limit,
+      };
+    process.stdout.write(JSON.stringify(timer) + "\n");
     return;
   }
   // The CLI operation is short and atomic. A cooperative termination finishes

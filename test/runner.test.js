@@ -265,6 +265,29 @@ test("a client still working when its grace period ends is stopped", async () =>
   assert.equal(result.streamUsage, null);
   assert.ok(result.wallSeconds >= 0.55 && result.wallSeconds < 2.5, String(result.wallSeconds));
 });
+test("an output budget stops a client whose streamed thinking passes it", async () => {
+  const seen = [];
+  const result = await supervise(process.execPath, ["-e",
+    "let n=0;setInterval(()=>console.log(JSON.stringify({type:'system',subtype:'thinking_tokens',estimated_tokens_delta:100,estimated_tokens:n+=100})),100)",
+  ], {
+    cwd: os.tmpdir(), env: process.env, prompt: "x", deadline: () => Date.now() + 60000,
+    graceMs: 30000, maxOutputTokens: 500, onOutputTokens: (used) => seen.push(used),
+  });
+  assert.equal(result.reason, "budget");
+  assert.ok(result.outputTokensAtStop >= 500 && result.outputTokensAtStop < 800, String(result.outputTokensAtStop));
+  assert.ok(result.wallSeconds < 3, "A spent budget stops the client without a grace period");
+  assert.ok(seen.length >= 1 && seen.at(-1) === result.outputTokensAtStop);
+});
+test("an output budget uses the native count when the client reports one", async () => {
+  const started = Date.now();
+  const result = await supervise(process.execPath, ["-e", "setInterval(()=>{},1000)"], {
+    cwd: os.tmpdir(), env: process.env, prompt: "x", deadline: () => started + 60000,
+    maxOutputTokens: 1000, nativeOutputTokens: () => (Date.now() - started > 700 ? 1500 : 200),
+  });
+  assert.equal(result.reason, "budget");
+  assert.equal(result.outputTokensAtStop, 1500);
+  assert.equal(result.streamUsage, null);
+});
 test("client failure and forbidden tool calls invalidate an attempt", async () => {
   for (const event of [
     { type: "result", is_error: true },

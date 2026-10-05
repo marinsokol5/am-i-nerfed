@@ -27,6 +27,7 @@ A client that fails before the assessment starts is retried `retries` times; its
 - `providers.<name>.models`: model IDs.
 - `graceSeconds`: how long a client may keep running after its run closes. Answers after the deadline are still rejected; the grace lets the client end its turn, so Claude reports exact token usage.
 - `retries`: attempts after a client fails to start.
+- `maxOutputTokens`: optional output budget, including reasoning, for each run (`null` for none; `--max-output-tokens N` overrides it). The model is told its budget and `./assessment timer` shows its usage. The run stops once the count passes the budget: Codex counts after each finished response, so it can overshoot by up to one response; Claude's count is an estimate from its streamed thinking progress and output. Set `seconds` high enough that time does not bind first.
 
 ## Token counts
 

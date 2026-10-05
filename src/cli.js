@@ -34,7 +34,8 @@ const help = `am-i-nerfed — private reasoning assessments
   init
   run --agent codex|claude --model MODEL --effort LEVEL
       [--difficulty easy|medium|hard] [--seconds N] [--no-system-prompt]
-      [--grace-seconds N] [--transcript PATH] [--verbose] [--json]
+      [--grace-seconds N] [--max-output-tokens N] [--transcript PATH]
+      [--verbose] [--json]
   start [--difficulty easy|medium|hard] [--seconds N]
         [--invocation skill|manual] [--agent NAME] [--provider NAME]
         [--model MODEL] [--effort LEVEL] [--verbose]
@@ -59,6 +60,8 @@ Six tasks per assessment; default medium difficulty and 120 seconds.
 run launches a fresh native CLI session with a process watchdog.
 --grace-seconds lets the client end its turn after the run closes, so it
 reports exact token usage; --transcript saves the client's session log.
+--max-output-tokens stops the run once the client's output, including
+reasoning, exceeds N tokens, checked twice a second.
 start/question/answer/status/finish compose an in-context assessment. They
 enforce the answer deadline but cannot stop an independently hosted agent.
 Difficulty and reasoning effort are different settings. Unknown metadata
@@ -276,7 +279,13 @@ export async function main(args = process.argv.slice(2)) {
   if (command === "run") {
     const opts = options(
       rest,
-      [...settingFlags, ...assessmentFlags, "--transcript", "--grace-seconds"],
+      [
+        ...settingFlags,
+        ...assessmentFlags,
+        "--transcript",
+        "--grace-seconds",
+        "--max-output-tokens",
+      ],
       ["--json", "--verbose", "--no-system-prompt"],
     );
     const verbose = Boolean(opts["--verbose"]);
@@ -284,11 +293,18 @@ export async function main(args = process.argv.slice(2)) {
     const transcript = opts["--transcript"]
       ? path.resolve(opts["--transcript"])
       : undefined;
-    const graceSeconds =
-      opts["--grace-seconds"] === undefined
-        ? undefined
-        : Number(opts["--grace-seconds"]);
-    for (const flag of ["--verbose", "--json", "--no-system-prompt", "--transcript", "--grace-seconds"])
+    const number = (flag) =>
+      opts[flag] === undefined ? undefined : Number(opts[flag]);
+    const graceSeconds = number("--grace-seconds"),
+      maxOutputTokens = number("--max-output-tokens");
+    for (const flag of [
+      "--verbose",
+      "--json",
+      "--no-system-prompt",
+      "--transcript",
+      "--grace-seconds",
+      "--max-output-tokens",
+    ])
       delete opts[flag];
     if (!opts["--agent"] || !opts["--model"] || !opts["--effort"])
       throw Error("run requires --agent, --model and --effort");
@@ -298,6 +314,7 @@ export async function main(args = process.argv.slice(2)) {
       systemPrompt,
       transcript,
       graceSeconds,
+      maxOutputTokens,
     };
     if (verbose)
       process.stderr.write(

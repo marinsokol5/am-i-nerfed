@@ -11,4 +11,4 @@ When you change one, change the other in the same commit, using the same wording
 
 - commands: `am-i-nerfed … --run <RUN-ID>` in the skill, `./assessment …` in CLI mode
 - skill only: arguments, metadata flags, the in-conversation rule, reporting the score to the user
-- CLI only: the clock starts at launch, the process is stopped at the deadline, ending the turn ends the run, one command at a time without shell syntax
+- CLI only: the clock starts at launch, the process is stopped at the deadline, ending the turn ends the run, one command at a time without shell syntax, the optional output-token budget
