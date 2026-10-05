@@ -205,6 +205,26 @@ process.stdin.on('end',()=>{
   assert.deepEqual(run.execution.observedModels, ["fallback-model"]);
 });
 
+test("a Claude run answered by a dated snapshot of the requested model passes", t => {
+  const f = fixture(t);
+  const fake = `#!${process.execPath}
+const cp = require('node:child_process');
+if(process.argv.includes('--version')){console.log('fake-cli');process.exit(0);}
+process.stdin.resume();
+process.stdin.on('end',()=>{
+  const call=(args)=>{const r=cp.spawnSync('./assessment',args,{encoding:'utf8'});if(r.status)throw Error(r.stderr);return JSON.parse(r.stdout);};
+  call(['start']);
+  console.log(JSON.stringify({type:'assistant',message:{id:'m1',model:'fake-model-20251001',content:[{type:'text',text:'x'}]}}));
+  call(['finish']);
+  console.log(JSON.stringify({type:'result',is_error:false}));
+});
+`;
+  fs.writeFileSync(path.join(f.bin, "claude"), fake, { mode: 0o700 });
+  const result = f.exec("run", "--agent", "claude", "--model", "fake-model", "--effort", "medium", "--seconds", "60", "--verbose");
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).execution.failure, null);
+});
+
 test("run requires --agent, --model and --effort; init saves no defaults", t => {
   const f = fixture(t);
   assert.equal("defaults" in f.initialized, false);

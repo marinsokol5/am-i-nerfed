@@ -816,7 +816,9 @@ export async function runAssessment(options) {
       execution.failure = "Client reported a different reasoning effort";
     // Claude Code can silently switch to another model, for example after a
     // safety classifier stops a response; that run measures a different model.
-    if (agent === "claude" && execution.observedModels.some((value) => value !== model))
+    // A dated snapshot of the requested alias is the same model.
+    const sameModel = (value) => value === model || new RegExp(`^${model.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}-\\d{8}$`).test(value);
+    if (agent === "claude" && !execution.observedModels.every(sameModel))
       execution.failure = "Client switched to a different model";
     if (!fs.existsSync(runFile)) {
       execution.failure ??= "Client ended before starting an assessment";
