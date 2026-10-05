@@ -29,15 +29,29 @@ import {
 export const MINIMAL_SYSTEM_PROMPT = "Follow the user's instructions.";
 
 // Keep in sync with skills/am-i-nerfed/SKILL.md (## Rules, ## Assessment);
-// only the CLI-specific parts may differ. See AGENTS.md.
-export function examPrompt({ seconds = 120, difficulty = "medium", maxOutputTokens } = {}) {
+// only the CLI-specific parts may differ. See AGENTS.md. A token budget
+// replaces the time wording; its seconds remain a safety limit.
+export function examPrompt({
+  seconds = 120,
+  difficulty = "medium",
+  maxOutputTokens,
+} = {}) {
+  const tokens = Boolean(maxOutputTokens);
   return `## Rules
 
-- You have limited ${seconds} seconds to complete, as well as you can, the six ${difficulty} tasks; the timer started when this session launched and is exposed to you at any moment through \`./assessment timer\`.
-${maxOutputTokens ? `- Your output, including reasoning, is limited to ${maxOutputTokens} tokens. The assessment stops as soon as you exceed it; \`./assessment timer\` also shows how many you have used.\n` : ""}- Solve by reasoning only -> no code calculations, browsing, file inspection, prior answers, outside models or delegation. Only the assessment commands below are permitted for retrieving questions, answering and checking time.
+${
+  tokens
+    ? `- You have a budget of ${maxOutputTokens} output tokens, including reasoning, to complete, as well as you can, the six ${difficulty} tasks. Every command response shows \`outputTokens\` used so far; check \`./assessment budget\` after every reasoning pass. A safety limit also stops the session after ${seconds} seconds.`
+    : `- You have limited ${seconds} seconds to complete, as well as you can, the six ${difficulty} tasks; the timer started when this session launched and is exposed to you at any moment through \`./assessment budget\`.`
+}
+- Solve by reasoning only -> no code calculations, browsing, file inspection, prior answers, outside models or delegation. Only the assessment commands below are permitted for retrieving questions, answering and checking ${tokens ? "your budget" : "time"}.
 - No correctness feedback is returned while an assessment is active.
-- It's highly recommended to attempt all tasks before spending the remaining time on refinements. Use short reasoning passes and partial answers to avoid losing work. Partially correct answers influence final score, so saving something early is worth it.
-- There is no reward for finishing the assessment early or for stopping work with the timer still ticking. Saved answers are kept; being mid-thought when time runs out costs nothing.
+- It's highly recommended to attempt all tasks before spending the remaining ${tokens ? "budget" : "time"} on refinements. Use short reasoning passes and partial answers to avoid losing work. Partially correct answers influence final score, so saving something early is worth it.
+- ${
+    tokens
+      ? "There is no reward for finishing the assessment early or for stopping work with budget left. Saved answers are kept; being mid-thought when the budget runs out costs nothing."
+      : "There is no reward for finishing the assessment early or for stopping work with the timer still ticking. Saved answers are kept; being mid-thought when time runs out costs nothing."
+  }
 - Run one command at a time, exactly as shown, without shell wrappers, pipelines or other syntax.
 
 ## Assessment
@@ -45,9 +59,21 @@ ${maxOutputTokens ? `- Your output, including reasoning, is limited to ${maxOutp
 1. Start the assessment -> \`./assessment start\`. Call it once, immediately, and retain the returned task IDs (<TASK-ID>).
 2. Retrieve individual task and see currently submitted answer -> \`./assessment question --task <TASK-ID>\`, or all tasks at once -> \`./assessment questions\`. Answer in the shape of \`response\`; each value is a JSON type (boolean, integer, string) or a name defined in \`types\`.
 3. Submit a new answer or revise existing -> \`./assessment answer --task <TASK-ID> --json '<JSON>'\`. Partial JSON objects merge recursively, omitted fields preserve prior work.
-4. You can check timer at any moment through \`./assessment timer\`.
-5. Do not call finish or end your turn before the deadline. Once every task has an answer, re-check the answer you are least sure of and save any correction, then move to the next least certain one. Keep reasoning until the timer runs out; do not wait or poll the timer without working.
-6. At the deadline your process is stopped and your saved answers are graded; late answers/revisions are rejected. Ending your turn also ends the assessment.
+${
+  tokens
+    ? "4. Check your remaining budget at any moment through `./assessment budget`; every other command response also shows `outputTokens`."
+    : "4. You can check your remaining time at any moment through `./assessment budget`."
+}
+${
+  tokens
+    ? "5. Do not call finish or end your turn before your budget is spent. Once every task has an answer, re-check the answer you are least sure of and save any correction, then move to the next least certain one. Keep reasoning until your budget runs out; do not check the budget repeatedly without working."
+    : "5. Do not call finish or end your turn before the deadline. Once every task has an answer, re-check the answer you are least sure of and save any correction, then move to the next least certain one. Keep reasoning until the timer runs out; do not wait or poll the timer without working."
+}
+${
+  tokens
+    ? "6. Once your output passes the budget, your saved answers are graded and later answers/revisions are rejected, so end your turn. Ending your turn also ends the assessment."
+    : "6. At the deadline your process is stopped and your saved answers are graded; late answers/revisions are rejected. Ending your turn also ends the assessment."
+}
 `;
 }
 
@@ -242,7 +268,7 @@ export function permittedCommand(command) {
   const action = tokens.shift();
   if (action === "status")
     return tokens.length === 0 || (tokens.length === 1 && tokens[0] === "--verbose");
-  if (["start", "questions", "timer", "finish"].includes(action))
+  if (["start", "questions", "budget", "timer", "finish"].includes(action))
     return tokens.length === 0;
   if (!["question", "answer"].includes(action)) return false;
   if (
@@ -298,6 +324,7 @@ export async function supervise(
     graceMs = 0,
     transcript,
     maxOutputTokens,
+    graceTokens = 0,
     nativeOutputTokens,
     onOutputTokens,
   },
@@ -346,13 +373,14 @@ export async function supervise(
     signalGroup(child, "SIGTERM");
     killTimer = setTimeout(() => signalGroup(child, "SIGKILL"), 200);
   };
-  // A closed run may let the client end its turn for graceMs, so it reports
-  // exact usage. Answers after the deadline are already rejected.
+  // A closed run may let the client end its turn for graceMs, and within a
+  // token budget for graceTokens more output, so it reports exact usage.
+  // Answers after the deadline or a spent budget are already rejected.
   const stop = (why) => {
     if (reason) return;
     reason = why;
     stoppedAt = Date.now();
-    if (graceMs > 0 && ["finished", "deadline"].includes(why) && !terminal)
+    if (graceMs > 0 && ["finished", "deadline", "budget"].includes(why) && !terminal)
       graceTimer = setTimeout(kill, graceMs);
     else kill();
   };
@@ -370,7 +398,7 @@ export async function supervise(
     }
     // An output budget is checked twice a second: Codex counts each finished
     // response in its session log, Claude streams thinking progress.
-    if (maxOutputTokens && !reason && performance.now() >= nextBudgetCheck) {
+    if (maxOutputTokens && !killTimer && performance.now() >= nextBudgetCheck) {
       nextBudgetCheck = performance.now() + 500;
       const used = nativeOutputTokens
         ? nativeOutputTokens(threadId)
@@ -380,6 +408,7 @@ export async function supervise(
         onOutputTokens?.(used);
       }
       if (used >= maxOutputTokens) stop("budget");
+      if (used >= maxOutputTokens + graceTokens) kill();
     }
   }, 25);
   child.stderr.resume();
@@ -512,7 +541,7 @@ export async function supervise(
     cleanupFailure,
     usage,
     streamUsage: streamUsage(responses, estimatedOutput()),
-    outputTokensAtStop: maxOutputTokens ? outputTokens : null,
+    outputTokensSeen: maxOutputTokens ? outputTokens : null,
     terminal,
     threadId,
     stoppedAt: stoppedAt ?? Date.now(),
@@ -552,14 +581,19 @@ export async function runAssessment(options) {
   const systemPrompt = options.systemPrompt ?? "native";
   if (!["native", "none"].includes(systemPrompt))
     throw Error("Invalid system prompt mode");
-  const seconds = durationSeconds(options.seconds);
-  const graceSeconds = options.graceSeconds ?? 0;
+  const seconds = durationSeconds(
+    options.seconds ?? (options.maxOutputTokens ? 1800 : 120),
+  );
+  const graceSeconds = options.graceSeconds ?? (options.maxOutputTokens ? 30 : 0);
   const maxOutputTokens = options.maxOutputTokens;
   if (
     maxOutputTokens !== undefined &&
     (!Number.isSafeInteger(maxOutputTokens) || maxOutputTokens < 1)
   )
     throw Error("--max-output-tokens must be a positive integer");
+  const graceTokens = maxOutputTokens ? (options.graceTokens ?? 1000) : 0;
+  if (!Number.isSafeInteger(graceTokens) || graceTokens < 0)
+    throw Error("--grace-tokens must be a non-negative integer");
   if (!Number.isSafeInteger(graceSeconds) || graceSeconds < 0 || graceSeconds > 300)
     throw Error("--grace-seconds must be an integer from 0 to 300");
   const [executable, ...prefix] = clientCommand(agent);
@@ -585,6 +619,7 @@ export async function runAssessment(options) {
   const events = path.join(work, "events.jsonl"),
     config = path.join(work, "transport.json"),
     runFile = path.join(work, "run.json"),
+    calls = path.join(work, "calls.jsonl"),
     budgetFile = maxOutputTokens ? path.join(work, "budget.json") : null;
   const settings = {
     ...options,
@@ -604,6 +639,7 @@ export async function runAssessment(options) {
     events,
     options: settings,
     startedAt: launchedAt,
+    calls,
     budget: budgetFile && { file: budgetFile, limit: maxOutputTokens },
   });
   const moduleURL = new URL("./runner-transport.js", import.meta.url).href;
@@ -617,8 +653,8 @@ export async function runAssessment(options) {
   fs.writeFileSync(path.join(work, "package.json"), '{"type":"module"}', {
     mode: 0o600,
   });
-  const prompt = examPrompt(options);
-  const deadline = () => launchedAt + (options.seconds ?? 120) * 1000;
+  const prompt = examPrompt({ ...options, seconds });
+  const deadline = () => launchedAt + seconds * 1000;
   let execution,
     seenEvents = 0;
   try {
@@ -651,6 +687,7 @@ export async function runAssessment(options) {
         graceMs: graceSeconds * 1000,
         transcript: options.transcript,
         maxOutputTokens,
+        graceTokens,
         nativeOutputTokens:
           agent === "codex"
             ? (threadId) =>
@@ -666,6 +703,14 @@ export async function runAssessment(options) {
     execution.clientVersion = version.stdout.trim();
     execution.graceSeconds = graceSeconds;
     execution.maxOutputTokens = maxOutputTokens ?? null;
+    execution.graceTokens = maxOutputTokens ? graceTokens : null;
+    // How often the solver ran each assessment command, budget checks included.
+    execution.commandCounts = {};
+    if (fs.existsSync(calls))
+      for (const line of fs.readFileSync(calls, "utf8").split("\n").filter(Boolean)) {
+        const { action } = JSON.parse(line);
+        execution.commandCounts[action] = (execution.commandCounts[action] ?? 0) + 1;
+      }
     if (agent === "codex") {
       execution.nativeEvidence = codexEvidence(
         childEnv.CODEX_HOME,

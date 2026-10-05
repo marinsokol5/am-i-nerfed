@@ -13,8 +13,18 @@ import {
 export function transport(configPath, args = process.argv.slice(2)) {
   const config = readJSON(configPath),
     [action, ...rest] = args;
-  if (!["start", "question", "questions", "answer", "status", "timer", "finish"].includes(action))
-    throw Error("Use start, question, questions, answer, status, timer or finish");
+  if (!["start", "question", "questions", "answer", "status", "budget", "timer", "finish"].includes(action))
+    throw Error("Use start, question, questions, answer, status, budget or finish");
+  // Every invocation is counted, including budget checks, which leave the
+  // assessment untouched.
+  if (config.calls)
+    fs.appendFileSync(config.calls, JSON.stringify({ action, time: Date.now() }) + "\n", { mode: 0o600 });
+  // With a token budget every response shows the output tokens used so far.
+  const outputTokens = config.budget && {
+    used: fs.existsSync(config.budget.file) ? readJSON(config.budget.file).used : 0,
+    limit: config.budget.limit,
+  };
+  const withBudget = (output) => (outputTokens ? { ...output, outputTokens } : output);
   const opts = {};
   for (let i = 0; i < rest.length; i++) {
     if (rest[i] === "--verbose" && action === "status" && !opts.verbose) {
@@ -40,15 +50,20 @@ export function transport(configPath, args = process.argv.slice(2)) {
     throw Error("Answer exceeds 1 MiB");
   const patch = action === "answer" ? JSON.parse(opts["--json"]) : undefined;
   process.env.AM_I_NERFED_HOME = config.state;
-  if (action === "timer") {
+  if (action === "budget" || action === "timer") {
     const run = readJSON(path.join(path.dirname(configPath), "run.json"));
-    const timer = assessmentTimer(active(stateRoot()), run.runId);
-    if (config.budget)
-      timer.outputTokens = {
-        used: fs.existsSync(config.budget.file) ? readJSON(config.budget.file).used : 0,
-        limit: config.budget.limit,
-      };
-    process.stdout.write(JSON.stringify(timer) + "\n");
+    process.stdout.write(JSON.stringify(withBudget(assessmentTimer(active(stateRoot()), run.runId))) + "\n");
+    return;
+  }
+  // A spent token budget closes answering, as the deadline does.
+  if (action === "answer" && outputTokens && outputTokens.used >= outputTokens.limit) {
+    const run = readJSON(path.join(path.dirname(configPath), "run.json"));
+    const clock = assessmentTimer(active(stateRoot()), run.runId);
+    fs.appendFileSync(config.events, JSON.stringify({ action, time: Date.now(), runId: run.runId,
+      status: "active", clock, accepted: false }) + "\n", { mode: 0o600 });
+    process.stdout.write(JSON.stringify({ accepted: false, taskId: opts["--task"],
+      reason: "Output token budget spent; answer unchanged.", outputTokens }) + "\n");
+    process.exitCode = 1;
     return;
   }
   // The CLI operation is short and atomic. A cooperative termination finishes
@@ -97,6 +112,6 @@ export function transport(configPath, args = process.argv.slice(2)) {
           : action === "answer"
           ? formatAnswer(result)
           : formatRun(result, { verbose: opts.verbose });
-  process.stdout.write(JSON.stringify(output) + "\n");
+  process.stdout.write(JSON.stringify(withBudget(output)) + "\n");
   if (result.accepted === false) process.exitCode = 1;
 }

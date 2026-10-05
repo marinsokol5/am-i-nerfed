@@ -3,6 +3,7 @@
   "graceSeconds": 30,
   "retries": 1,
   "maxOutputTokens": null,
+  "graceTokens": 1000,
   "levels": [
     { "difficulty": "easy", "seconds": 90 },
     { "difficulty": "medium", "seconds": 180 },

@@ -11,7 +11,7 @@ node eval/harness.js summarize eval/run-2026-10-05-1200   # rebuild result.md
 
 Each sweep writes to `eval/run-<date>-<time>/`:
 
-- `result.md`: models ranked by their mean score over all levels, with time left and output tokens per level, then every run. It is rewritten after each run.
+- `result.md`: models ranked by their mean score over all levels, with time left, output tokens and budget checks per level, then every run. It is rewritten after each run.
 - `result.json`: the same data.
 - `record-<agent>-<model>-<difficulty>-<seconds>.json`: the full run record, plus the harness settings and progress lines.
 - `transcript-<agent>-<model>-<difficulty>-<seconds>.jsonl`: Claude's stream-json output, or Codex's native session log. Transcripts contain the private task text, so Git ignores them.
@@ -27,7 +27,8 @@ A client that fails before the assessment starts is retried `retries` times; its
 - `providers.<name>.models`: model IDs.
 - `graceSeconds`: how long a client may keep running after its run closes. Answers after the deadline are still rejected; the grace lets the client end its turn, so Claude reports exact token usage.
 - `retries`: attempts after a client fails to start.
-- `maxOutputTokens`: optional output budget, including reasoning, for each run (`null` for none; `--max-output-tokens N` overrides it). The model is told its budget and `./assessment timer` shows its usage. The run stops once the count passes the budget: Codex counts after each finished response, so it can overshoot by up to one response; Claude's count is an estimate from its streamed thinking progress and output. Set `seconds` high enough that time does not bind first.
+- `maxOutputTokens`: optional budget of output tokens, including reasoning, for each run (`null` for a time-limited run; `--max-output-tokens N` overrides it). A budget replaces the time wording in the prompt, and each level's `seconds` becomes a safety limit, so set it high enough not to bind. Every command response shows the tokens used, and the prompt asks the model to check `./assessment budget` after every reasoning pass. Once the count passes the budget, answers are rejected and the client may use `graceTokens` more within `graceSeconds` to end its turn. Codex counts after each finished response, so an answer in the response that crosses the budget still counts; Claude's count is an estimate from its streamed thinking progress and output.
+- `graceTokens`: output tokens a client may use after spending its budget (default 1,000).
 
 ## Token counts
 

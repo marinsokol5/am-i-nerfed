@@ -23,7 +23,7 @@ export function loadConfig(file) {
   for (const [name, provider] of Object.entries(config.providers ?? {}))
     if (!["claude", "codex"].includes(provider.agent) || !Array.isArray(provider.models))
       throw Error(`Provider ${name} needs agent claude|codex and a models list`);
-  return { graceSeconds: 0, retries: 1, maxOutputTokens: null, ...config };
+  return { graceSeconds: 0, retries: 1, maxOutputTokens: null, graceTokens: null, ...config };
 }
 
 /** Every planned run, providers in config order, each model at every level. */
@@ -65,6 +65,10 @@ export function runSummary(record) {
     percent: run?.result?.percent ?? null,
     timeLeft: clock ? clock.durationSeconds - clock.elapsedSeconds : null,
     answers: (harness.progress ?? []).filter((line) => line.startsWith("answer:")).length,
+    // Budget checks were called timer before the command was renamed.
+    budgetChecks: run?.execution?.commandCounts
+      ? (run.execution.commandCounts.budget ?? 0) + (run.execution.commandCounts.timer ?? 0)
+      : null,
     tokens: tokenUsage(run),
     status: run?.status ?? "missing",
     reason: run?.execution?.reason ?? null,
@@ -108,7 +112,7 @@ const levelName = ({ difficulty, seconds }) =>
 
 export function markdown(results) {
   const header = ["Rank", "Model", ...results.levels.map(levelName), "Average",
-    "Time left (s)", "Output tokens"];
+    "Time left (s)", "Output tokens", "Budget checks"];
   const lines = [
     `# Evaluation ${results.generatedAt.slice(0, 16).replace("T", " ")} UTC`,
     "",
@@ -122,16 +126,17 @@ export function markdown(results) {
     ...results.rows.map((row, i) => `| ${row.average == null ? "—" : i + 1} | \`${row.model}\` | ${
       row.levels.map((run) => percent(run?.percent)).join(" | ")} | **${percent(row.average)}** | ${
       row.levels.map((run) => run?.timeLeft ?? "—").join(" / ")} | ${
-      row.levels.map((run) => tokens(run?.tokens)).join(" / ")} |`),
+      row.levels.map((run) => tokens(run?.tokens)).join(" / ")} | ${
+      row.levels.map((run) => run?.budgetChecks ?? "—").join(" / ")} |`),
     "",
-    `Time left and output tokens list ${results.levels.map(levelName).join(" / ")}. Time left is the unused allowance when the model ended its turn or was stopped. Output tokens include reasoning; \`~\` marks counts that miss a response cut off by the stop (Codex) or are estimated from the stream (Claude).`,
+    `Per-level columns list ${results.levels.map(levelName).join(" / ")}. Time left is the unused allowance when the model ended its turn or was stopped. Output tokens include reasoning; \`~\` marks counts that miss a response cut off by the stop (Codex) or are estimated from the stream (Claude). Budget checks count the model's \`./assessment budget\` calls.`,
     "",
     "## Runs",
     "",
-    "| Model | Level | Score | Status | Time left (s) | Answers | Output tokens | Failure | Run |",
-    "|---|---|---:|---|---:|---:|---:|---|---|",
+    "| Model | Level | Score | Status | Time left (s) | Answers | Budget checks | Output tokens | Failure | Run |",
+    "|---|---|---:|---|---:|---:|---:|---:|---|---|",
     ...results.runs.map((run) => `| \`${run.model}\` | ${levelName(run)} | ${percent(run.percent)} | ${run.status}${
-      run.reason ? ` (${run.reason})` : ""} | ${run.timeLeft ?? "—"} | ${run.answers} | ${tokens(run.tokens)} | ${
+      run.reason ? ` (${run.reason})` : ""} | ${run.timeLeft ?? "—"} | ${run.answers} | ${run.budgetChecks ?? "—"} | ${tokens(run.tokens)} | ${
       run.failure ?? ""} | ${run.runId?.slice(0, 8) ?? ""} |`),
     "",
   ];
@@ -171,7 +176,8 @@ function attempt(run, config, dir, number) {
   const args = [path.join(root, "bin", "am-i-nerfed.js"), "run", "--agent", run.agent, "--model", run.model,
     "--effort", config.effort, "--difficulty", run.difficulty, "--seconds", String(run.seconds),
     "--grace-seconds", String(config.graceSeconds), "--transcript", transcript, "--verbose",
-    ...(config.maxOutputTokens ? ["--max-output-tokens", String(config.maxOutputTokens)] : [])];
+    ...(config.maxOutputTokens ? ["--max-output-tokens", String(config.maxOutputTokens)] : []),
+    ...(config.maxOutputTokens && config.graceTokens != null ? ["--grace-tokens", String(config.graceTokens)] : [])];
   const env = { ...process.env };
   if (run.command) env[`AM_I_NERFED_${run.agent.toUpperCase()}_COMMAND`] = run.command;
   const startedAt = new Date().toISOString(), progress = [];
@@ -191,7 +197,8 @@ function attempt(run, config, dir, number) {
       try { parsed = JSON.parse(stdout); } catch { /* recorded as an error below */ }
       const record = {
         harness: { run, attempt: number, startedAt, exitCode, progress, command: run.command ?? run.agent,
-          effort: config.effort, graceSeconds: config.graceSeconds, maxOutputTokens: config.maxOutputTokens },
+          effort: config.effort, graceSeconds: config.graceSeconds, maxOutputTokens: config.maxOutputTokens,
+          graceTokens: config.graceTokens },
         run: parsed,
         error: parsed ? null : stderr.trim().split("\n").slice(-5).join("\n") || "No run record",
       };

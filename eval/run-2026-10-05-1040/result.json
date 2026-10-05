@@ -1,0 +1,119 @@
+{
+  "generatedAt": "2026-10-05T08:44:54.256Z",
+  "appVersion": "0.11.0",
+  "taskBankVersion": 13,
+  "baselineId": "b24557ac-7628-49d6-8f45-34f19ec43122",
+  "effort": "high",
+  "graceSeconds": 30,
+  "maxOutputTokens": 5000,
+  "levels": [
+    {
+      "difficulty": "medium",
+      "seconds": 900
+    }
+  ],
+  "clients": {
+    "claude": "am run claude-ms18",
+    "codex": "codex"
+  },
+  "rows": [
+    {
+      "model": "gpt-6-astra",
+      "levels": [
+        {
+          "provider": "openai",
+          "agent": "codex",
+          "command": null,
+          "model": "gpt-6-astra",
+          "difficulty": "medium",
+          "seconds": 900,
+          "percent": 82.66306792622582,
+          "timeLeft": 669,
+          "answers": 7,
+          "budgetChecks": 8,
+          "tokens": {
+            "output": 5074,
+            "input": 314996,
+            "exact": true
+          },
+          "status": "finished",
+          "reason": "budget",
+          "failure": null,
+          "runId": "135bedef-3bb6-4307-8bc7-fb913e563081"
+        }
+      ],
+      "average": 82.66306792622582
+    },
+    {
+      "model": "claude-opus-5-5",
+      "levels": [
+        {
+          "provider": "anthropic",
+          "agent": "claude",
+          "command": "am run claude-ms18",
+          "model": "claude-opus-5-5",
+          "difficulty": "medium",
+          "seconds": 900,
+          "percent": 66.66666666666667,
+          "timeLeft": 842,
+          "answers": 6,
+          "budgetChecks": 0,
+          "tokens": {
+            "output": 5008,
+            "exact": true,
+            "input": 105520
+          },
+          "status": "finished",
+          "reason": "finished",
+          "failure": null,
+          "runId": "c8857566-e2fb-4d8e-9f2d-efa887d9de90"
+        }
+      ],
+      "average": 66.66666666666667
+    }
+  ],
+  "runs": [
+    {
+      "provider": "anthropic",
+      "agent": "claude",
+      "command": "am run claude-ms18",
+      "model": "claude-opus-5-5",
+      "difficulty": "medium",
+      "seconds": 900,
+      "percent": 66.66666666666667,
+      "timeLeft": 842,
+      "answers": 6,
+      "budgetChecks": 0,
+      "tokens": {
+        "output": 5008,
+        "exact": true,
+        "input": 105520
+      },
+      "status": "finished",
+      "reason": "finished",
+      "failure": null,
+      "runId": "c8857566-e2fb-4d8e-9f2d-efa887d9de90"
+    },
+    {
+      "provider": "openai",
+      "agent": "codex",
+      "command": null,
+      "model": "gpt-6-astra",
+      "difficulty": "medium",
+      "seconds": 900,
+      "percent": 82.66306792622582,
+      "timeLeft": 669,
+      "answers": 7,
+      "budgetChecks": 8,
+      "tokens": {
+        "output": 5074,
+        "input": 314996,
+        "exact": true
+      },
+      "status": "finished",
+      "reason": "budget",
+      "failure": null,
+      "runId": "135bedef-3bb6-4307-8bc7-fb913e563081"
+    }
+  ]
+}

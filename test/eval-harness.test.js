@@ -41,7 +41,8 @@ test("token counts prefer exact reports and mark estimates", () => {
 
 test("results rank complete models by their mean score and list every run", () => {
   const records = [
-    record("claude", "claude-a", "easy", 90, 80, 60, { terminal: true, usage: { output_tokens: 1200 } }),
+    record("claude", "claude-a", "easy", 90, 80, 60, { terminal: true, usage: { output_tokens: 1200 },
+      commandCounts: { start: 1, answer: 6, budget: 2, timer: 1 } }),
     record("claude", "claude-a", "hard", 360, 40, 360, { terminal: false, streamUsage: { input_tokens: 1,
       cache_creation_input_tokens: 0, cache_read_input_tokens: 0, estimated_output_tokens: 5000 } }),
     record("claude", "claude-b", "easy", 90, 100, 90, {}),
@@ -52,8 +53,8 @@ test("results rank complete models by their mean score and list every run", () =
   assert.deepEqual(results.rows.map((row) => [row.model, row.average]), [["gpt-a", 70], ["claude-a", 60], ["claude-b", null]]);
   assert.deepEqual(results.clients, { claude: "am run acct", codex: "codex" });
   const table = markdown(results);
-  assert.match(table, /\| 1 \| `gpt-a` \| 90\.0% \| 50\.0% \| \*\*70\.0%\*\* \| 0 \/ 0 \| ~700 \/ — \|/);
-  assert.match(table, /\| 2 \| `claude-a` \| 80\.0% \| 40\.0% \| \*\*60\.0%\*\* \| 30 \/ 0 \| 1,200 \/ ~5,000 \|/);
+  assert.match(table, /\| 1 \| `gpt-a` \| 90\.0% \| 50\.0% \| \*\*70\.0%\*\* \| 0 \/ 0 \| ~700 \/ — \| — \/ — \|/);
+  assert.match(table, /\| 2 \| `claude-a` \| 80\.0% \| 40\.0% \| \*\*60\.0%\*\* \| 30 \/ 0 \| 1,200 \/ ~5,000 \| 3 \/ — \|/);
   assert.match(table, /\| — \| `claude-b` \| 100\.0% \| — \| \*\*—\*\* \|/);
   assert.equal(results.runs.length, 5);
   assert.equal(results.runs[0].answers, 1);

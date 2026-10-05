@@ -137,3 +137,33 @@ test("supervised timer transport reports an output budget's usage", t => {
   fs.writeFileSync(budget, JSON.stringify({ used: 1234, limit: 5000 }));
   assert.deepEqual(timer().outputTokens, { used: 1234, limit: 5000 });
 });
+
+test("a token budget shows its usage in every response, rejects answers once spent and counts each command", t => {
+  const f = fixture(t), run = startAssessment(f.state, { seconds: 500 });
+  const config = path.join(f.cwd, "transport.json"), budget = path.join(f.cwd, "budget.json"),
+    calls = path.join(f.cwd, "calls.jsonl"), events = path.join(f.cwd, "events.jsonl");
+  fs.writeFileSync(config, JSON.stringify({ state: f.home, events, calls, budget: { file: budget, limit: 5000 } }));
+  fs.writeFileSync(path.join(f.cwd, "run.json"), JSON.stringify({ runId: run.runId }));
+  const call = (...args) => {
+    const source = `import {transport} from ${JSON.stringify(transportModule)};transport(${JSON.stringify(config)},${JSON.stringify(args)});`;
+    const result = spawnSync(process.execPath, ["--input-type=module", "-e", source], { cwd: f.cwd, encoding: "utf8" });
+    return { status: result.status, output: JSON.parse(result.stdout) };
+  };
+  fs.writeFileSync(budget, JSON.stringify({ used: 4000, limit: 5000 }));
+  const saved = call("answer", "--task", "medium-1", "--json", "null");
+  assert.equal(saved.output.accepted, true);
+  assert.deepEqual(saved.output.outputTokens, { used: 4000, limit: 5000 });
+  assert.deepEqual(call("budget").output.outputTokens, { used: 4000, limit: 5000 });
+  fs.writeFileSync(budget, JSON.stringify({ used: 5100, limit: 5000 }));
+  const late = call("answer", "--task", "medium-1", "--json", "true");
+  assert.equal(late.status, 1);
+  assert.equal(late.output.accepted, false);
+  assert.match(late.output.reason, /budget spent/);
+  assert.deepEqual(late.output.outputTokens, { used: 5100, limit: 5000 });
+  assert.notEqual(call("question", "--task", "medium-1").output.submitted, true, "The rejected answer was not saved");
+  assert.deepEqual(fs.readFileSync(calls, "utf8").trim().split("\n").map((line) => JSON.parse(line).action),
+    ["answer", "budget", "answer", "question"]);
+  const answers = fs.readFileSync(events, "utf8").trim().split("\n").map((line) => JSON.parse(line))
+    .filter((event) => event.action === "answer");
+  assert.deepEqual(answers.map((event) => event.accepted), [true, false]);
+});

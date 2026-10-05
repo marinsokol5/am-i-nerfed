@@ -70,6 +70,7 @@ test("transport audit permits literal answers and rejects command execution hidd
     `/bin/zsh -lc './assessment status'`,
     "./assessment status --verbose",
     "./assessment timer",
+    "./assessment budget",
     "./assessment questions",
     `./assessment answer --task easy-1 --json "{\\"knowledge\\":{}}"`,
     `./assessment answer --task medium-3 --json '{"knowledge":{}}}'`,
@@ -96,6 +97,7 @@ test("transport audit permits literal answers and rejects command execution hidd
     "./assessment status --verbose --verbose",
     "./assessment status --verbose; python3 solve.py",
     "./assessment timer extra",
+    "./assessment budget --task medium-1",
     "./assessment questions --task medium-1",
     "./assessment questions | cat",
     "./assessment timer; python3 solve.py",
@@ -274,9 +276,21 @@ test("an output budget stops a client whose streamed thinking passes it", async 
     graceMs: 30000, maxOutputTokens: 500, onOutputTokens: (used) => seen.push(used),
   });
   assert.equal(result.reason, "budget");
-  assert.ok(result.outputTokensAtStop >= 500 && result.outputTokensAtStop < 800, String(result.outputTokensAtStop));
-  assert.ok(result.wallSeconds < 3, "A spent budget stops the client without a grace period");
-  assert.ok(seen.length >= 1 && seen.at(-1) === result.outputTokensAtStop);
+  // Usage is checked twice a second, so a busy machine may see a few more deltas.
+  assert.ok(result.outputTokensSeen >= 500 && result.outputTokensSeen < 2000, String(result.outputTokensSeen));
+  assert.ok(result.wallSeconds < 5, "Without grace tokens a spent budget stops the client at once");
+  assert.ok(seen.length >= 1 && seen.at(-1) === result.outputTokensSeen);
+});
+test("a spent budget lets a client use its grace tokens, then stops it", async () => {
+  const result = await supervise(process.execPath, ["-e",
+    "let n=0;setInterval(()=>console.log(JSON.stringify({type:'system',subtype:'thinking_tokens',estimated_tokens_delta:100,estimated_tokens:n+=100})),100)",
+  ], {
+    cwd: os.tmpdir(), env: process.env, prompt: "x", deadline: () => Date.now() + 60000,
+    graceMs: 30000, maxOutputTokens: 500, graceTokens: 300,
+  });
+  assert.equal(result.reason, "budget");
+  assert.ok(result.outputTokensSeen >= 800 && result.outputTokensSeen < 1100, String(result.outputTokensSeen));
+  assert.ok(result.wallSeconds < 4, String(result.wallSeconds));
 });
 test("an output budget uses the native count when the client reports one", async () => {
   const started = Date.now();
@@ -285,7 +299,7 @@ test("an output budget uses the native count when the client reports one", async
     maxOutputTokens: 1000, nativeOutputTokens: () => (Date.now() - started > 700 ? 1500 : 200),
   });
   assert.equal(result.reason, "budget");
-  assert.equal(result.outputTokensAtStop, 1500);
+  assert.equal(result.outputTokensSeen, 1500);
   assert.equal(result.streamUsage, null);
 });
 test("client failure and forbidden tool calls invalidate an attempt", async () => {

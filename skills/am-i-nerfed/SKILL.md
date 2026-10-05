@@ -13,7 +13,7 @@ metadata:
 
 ## Rules
 
-- You have limited <TIME> to complete, as well as you can, the six <DIFFICULTY> tasks; timer starts with `am-i-nerfed start` and is exposed to you at any moment through `am-i-nerfed timer --run <RUN-ID>`.
+- You have limited <TIME> to complete, as well as you can, the six <DIFFICULTY> tasks; timer starts with `am-i-nerfed start` and is exposed to you at any moment through `am-i-nerfed budget --run <RUN-ID>`.
 - Solve the tasks inside of the current conversation -> using the current model, reasoning effort, instructions, and prior conversation. Do not launch a fresh model, do not use a subagent, do not call `am-i-nerfed run`.
 - Solve by reasoning only -> no code calculations, browsing, file inspection, prior answers, outside models or delegation. Only the assessment CLI is permitted for retrieving questions, answering and checking time.
 - No correctness feedback is returned while an assessment is active. 
@@ -26,6 +26,6 @@ metadata:
     a) Retain the exact returned run ID (<RUN-ID>) and task IDs (<TASK-ID>).
 2. Retrieve individual task and see currently submitted answer -> `am-i-nerfed question --run <RUN-ID> --task <TASK-ID>`, or all tasks at once -> `am-i-nerfed questions --run <RUN-ID>`. Answer in the shape of `response`; each value is a JSON type (boolean, integer, string) or a name defined in `types`.
 3. Submit a new answer or revise existing -> `am-i-nerfed answer --run <RUN-ID> --task <TASK-ID> --json '<JSON>'`. Quoted stdin or `--file` is also accepted if needed for transport; do not use files to calculate answers. Partial JSON objects merge recursively, omitted fields preserve prior work.
-4. You can check timer at any moment through `am-i-nerfed timer --run <RUN-ID>`.
+4. You can check your remaining time at any moment through `am-i-nerfed budget --run <RUN-ID>`.
 5. Do not call finish or end your turn before the deadline. Once every task has an answer, re-check the answer you are least sure of and save any correction, then move to the next least certain one. Keep reasoning until the timer runs out; do not wait or poll the timer without working.
 6. Once the deadline has passed, obtain the evaluation result through `am-i-nerfed status --run <RUN-ID>`. Late answers/revisions are rejected. Final score is at `result.percent`; communicate it back to the user.

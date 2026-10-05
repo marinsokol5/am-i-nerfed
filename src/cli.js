@@ -34,8 +34,8 @@ const help = `am-i-nerfed — private reasoning assessments
   init
   run --agent codex|claude --model MODEL --effort LEVEL
       [--difficulty easy|medium|hard] [--seconds N] [--no-system-prompt]
-      [--grace-seconds N] [--max-output-tokens N] [--transcript PATH]
-      [--verbose] [--json]
+      [--grace-seconds N] [--max-output-tokens N [--grace-tokens N]]
+      [--transcript PATH] [--verbose] [--json]
   start [--difficulty easy|medium|hard] [--seconds N]
         [--invocation skill|manual] [--agent NAME] [--provider NAME]
         [--model MODEL] [--effort LEVEL] [--verbose]
@@ -43,7 +43,7 @@ const help = `am-i-nerfed — private reasoning assessments
   questions --run ID
   answer --run ID --task ID [--json JSON | --file PATH | stdin] [--verbose]
   status --run ID [--verbose]
-  timer --run ID
+  budget --run ID
   finish --run ID [--verbose]
   history list [--model MODEL] [--effort LEVEL] [--provider NAME]
                [--agent NAME] [--invocation cli|skill|manual]
@@ -60,8 +60,11 @@ Six tasks per assessment; default medium difficulty and 120 seconds.
 run launches a fresh native CLI session with a process watchdog.
 --grace-seconds lets the client end its turn after the run closes, so it
 reports exact token usage; --transcript saves the client's session log.
---max-output-tokens stops the run once the client's output, including
-reasoning, exceeds N tokens, checked twice a second.
+--max-output-tokens gives the run a budget of N output tokens, including
+reasoning, instead of a time limit; --seconds then only sets a safety limit
+(default 1800). Every response shows the tokens used. Once the budget is
+spent, answers are rejected and the client may use --grace-tokens (default
+1000) more within --grace-seconds (default 30) to end its turn.
 start/question/answer/status/finish compose an in-context assessment. They
 enforce the answer deadline but cannot stop an independently hosted agent.
 Difficulty and reasoning effort are different settings. Unknown metadata
@@ -285,6 +288,7 @@ export async function main(args = process.argv.slice(2)) {
         "--transcript",
         "--grace-seconds",
         "--max-output-tokens",
+        "--grace-tokens",
       ],
       ["--json", "--verbose", "--no-system-prompt"],
     );
@@ -296,7 +300,8 @@ export async function main(args = process.argv.slice(2)) {
     const number = (flag) =>
       opts[flag] === undefined ? undefined : Number(opts[flag]);
     const graceSeconds = number("--grace-seconds"),
-      maxOutputTokens = number("--max-output-tokens");
+      maxOutputTokens = number("--max-output-tokens"),
+      graceTokens = number("--grace-tokens");
     for (const flag of [
       "--verbose",
       "--json",
@@ -304,6 +309,7 @@ export async function main(args = process.argv.slice(2)) {
       "--transcript",
       "--grace-seconds",
       "--max-output-tokens",
+      "--grace-tokens",
     ])
       delete opts[flag];
     if (!opts["--agent"] || !opts["--model"] || !opts["--effort"])
@@ -315,6 +321,7 @@ export async function main(args = process.argv.slice(2)) {
       transcript,
       graceSeconds,
       maxOutputTokens,
+      graceTokens,
     };
     if (verbose)
       process.stderr.write(
@@ -379,7 +386,7 @@ export async function main(args = process.argv.slice(2)) {
     if (result.accepted === false) process.exitCode = 1;
     return;
   }
-  if (command === "timer") {
+  if (command === "budget" || command === "timer") {
     const opts = options(rest, ["--run"]);
     if (!opts["--run"]) throw Error("Retain the --run ID returned by start");
     emit(assessmentTimer(active(stateRoot()), opts["--run"]));
