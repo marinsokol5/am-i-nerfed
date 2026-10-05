@@ -1,19 +1,19 @@
-# Evaluation 2026-10-05 09:12 UTC
+# Evaluation 2026-10-05 12:23 UTC
 
-am-i-nerfed 0.11.0 · task bank v13 · baseline b24557ac · effort high · system prompt native · grace 30s · output budget 5,000 tokens
+am-i-nerfed 0.11.0 · task bank v13 · baseline b24557ac · effort high · system prompt native · grace 30s · output budgets with safety limits of 900s
 
-Clients: claude `am run claude-ms18` · codex `codex`
+Clients: anthropic `am run claude-ms18` · openai `codex`
 
-| Rank | Model | Medium 900s | Average | Time left (s) | Output tokens | Reasoning tokens (share) | Budget checks |
-|---:|---|---:|---:|---:|---:|---:|---:|
-| 1 | `gpt-6-astra` | 82.7% | **82.7%** | 669 | 5,074 | 3,996 (79%) | 8 |
-| 2 | `claude-opus-5-5` | 66.7% | **66.7%** | 842 | 5,008 | 3,642 (73%) | 0 |
+| Rank | Model | Medium 5k tokens | Average | Time left (s) | Output tokens | Reasoning tokens (share) | Tokens/s | Budget checks |
+|---:|---|---:|---:|---:|---:|---:|---:|---:|
+| 1 | `gpt-6-astra` | 82.7% | **82.7%** | 669 | 5,074 | 3,996 (79%) | 22 | 8 |
+| 2 | `claude-opus-5-5` | 66.7% | **66.7%** | 842 | 5,008 | 3,642 (73%) | 85 | 0 |
 
-Per-level columns list Medium 900s. Time left is the unused allowance when the model ended its turn or was stopped. Output tokens include reasoning tokens, whose share of the output is in brackets; `~` marks counts that miss a response cut off by the stop (Codex) or estimate it from the stream (Claude). Budget checks count the model's `./assessment budget` calls.
+Per-level columns list Medium 5k tokens. Time left is the unused allowance when the model ended its turn or was stopped. Output tokens include reasoning tokens, whose share of the output is in brackets; `~` marks counts that miss a response cut off by the stop (Codex) or estimate it from the stream (Claude). Tokens/s divides output tokens by the client's wall time, including startup and assessment commands. Budget checks count the model's `./assessment budget` calls.
 
 ## Runs
 
-| Model | Level | Score | Status | Time left (s) | Answers | Budget checks | Output tokens | Reasoning tokens (share) | Failure | Run |
-|---|---|---:|---|---:|---:|---:|---:|---:|---|---|
-| `claude-opus-5-5` | Medium 900s | 66.7% | finished (finished) | 842 | 6 | 0 | 5,008 | 3,642 (73%) |  | c8857566 |
-| `gpt-6-astra` | Medium 900s | 82.7% | finished (budget) | 669 | 7 | 8 | 5,074 | 3,996 (79%) |  | 135bedef |
+| Model | Level | Score | Status | Time left (s) | Answers | Budget checks | Output tokens | Reasoning tokens (share) | Tokens/s | Failure | Run |
+|---|---|---:|---|---:|---:|---:|---:|---:|---:|---|---|
+| `claude-opus-5-5` | Medium 5k tokens | 66.7% | finished (finished) | 842 | 6 | 0 | 5,008 | 3,642 (73%) | 85 |  | c8857566 |
+| `gpt-6-astra` | Medium 5k tokens | 82.7% | finished (budget) | 669 | 7 | 8 | 5,074 | 3,996 (79%) | 22 |  | 135bedef |

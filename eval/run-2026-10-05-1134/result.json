@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-10-05T09:35:32.106Z",
+  "generatedAt": "2026-10-05T12:23:12.082Z",
   "appVersion": "0.11.0",
   "taskBankVersion": 13,
   "baselineId": "b24557ac-7628-49d6-8f45-34f19ec43122",
   "effort": "high",
   "graceSeconds": 30,
-  "maxOutputTokens": null,
   "systemPrompt": "none",
   "levels": [
     {
       "difficulty": "medium",
-      "seconds": 120
+      "seconds": 120,
+      "maxOutputTokens": null
     }
   ],
   "clients": {
-    "claude": "am run claude-ms18"
+    "anthropic": "am run claude-ms18"
   },
   "rows": [
     {
@@ -27,6 +27,7 @@
           "model": "claude-sonnet-5-5",
           "difficulty": "medium",
           "seconds": 120,
+          "maxOutputTokens": null,
           "percent": 67.17948717948718,
           "timeLeft": 42,
           "answers": 7,
@@ -37,6 +38,7 @@
             "exact": true,
             "input": 99403
           },
+          "tokensPerSecond": 102.08992076189516,
           "status": "finished",
           "reason": "finished",
           "failure": null,
@@ -54,6 +56,7 @@
       "model": "claude-sonnet-5-5",
       "difficulty": "medium",
       "seconds": 120,
+      "maxOutputTokens": null,
       "percent": 67.17948717948718,
       "timeLeft": 42,
       "answers": 7,
@@ -64,6 +67,7 @@
         "exact": true,
         "input": 99403
       },
+      "tokensPerSecond": 102.08992076189516,
       "status": "finished",
       "reason": "finished",
       "failure": null,

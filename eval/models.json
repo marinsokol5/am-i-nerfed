@@ -5,6 +5,11 @@
   "retries": 1,
   "maxOutputTokens": null,
   "graceTokens": 1000,
+  "tokenLevels": [
+    { "difficulty": "easy", "seconds": 600, "maxOutputTokens": 4000 },
+    { "difficulty": "medium", "seconds": 900, "maxOutputTokens": 10000 },
+    { "difficulty": "hard", "seconds": 1800, "maxOutputTokens": 25000 }
+  ],
   "levels": [
     { "difficulty": "easy", "seconds": 90 },
     { "difficulty": "medium", "seconds": 180 },

@@ -6,13 +6,14 @@
 node eval/harness.js --dry-run                       # list the planned runs
 node eval/harness.js                                 # run them all
 node eval/harness.js --models gpt-6-astra --levels hard
+node eval/harness.js --mode tokens                   # token budgets instead of time limits
 node eval/harness.js --models gpt-6-astra --out eval/run-2026-10-05-1200   # add to an existing sweep
 node eval/harness.js summarize eval/run-2026-10-05-1200   # rebuild result.md from the records
 ```
 
 Each sweep writes to `eval/run-<date>-<time>/`:
 
-- `result.md`: models ranked by their mean score over all levels, with time left, output tokens, reasoning tokens and their share of the output, and budget checks per level, then every run. It is rewritten after each run.
+- `result.md`: models ranked by their mean score over all levels, with time left, output tokens, reasoning tokens and their share of the output, tokens per second and budget checks per level, then every run. Tokens per second divides output tokens by the client's wall time, which includes startup and assessment commands. It is rewritten after each run.
 - `result.json`: the same data.
 - `config.json`: the settings the sweep ran with. `summarize` uses it, or rebuilds the settings from the records when it is missing.
 - `record-<agent>-<model>-<difficulty>-<seconds>.json`: the full run record, plus the harness settings and progress lines.
@@ -30,8 +31,9 @@ A client that fails before the assessment starts is retried `retries` times; its
 - `providers.<name>.models`: model IDs.
 - `graceSeconds`: how long a client may keep running after its run closes. Answers after the deadline are still rejected; the grace lets the client end its turn, so Claude reports exact token usage.
 - `retries`: attempts after a client fails to start.
-- `maxOutputTokens`: optional budget of output tokens, including reasoning, for each run (`null` for a time-limited run; `--max-output-tokens N` overrides it). A budget replaces the time wording in the prompt, and each level's `seconds` becomes a safety limit, so set it high enough not to bind. Every command response shows the tokens used, and the prompt asks the model to check `./assessment budget` after every reasoning pass. The budget is spent once a model response starts over it, for every client: answers in the response that crosses the budget still count, and later answers are rejected. The client may then use `graceTokens` more within `graceSeconds` to end its turn. Codex and the direct API report counts after each response; Claude Code's stream also gives a live estimate, which only updates the usage shown.
+- `maxOutputTokens`: optional budget of output tokens, including reasoning, for each run (`null` for a time-limited run; `--max-output-tokens N` overrides it). A budget replaces the time wording in the prompt, and each level's `seconds` becomes a safety limit, so set it high enough not to bind. Every command response shows the tokens used, and the prompt asks the model to check `./assessment budget` after every reasoning pass. The budget is spent once a model response starts over it, for every client: answers in the response that crosses the budget still count, and later answers are rejected. The client may then use `graceTokens` more within `graceSeconds` to end its turn, and a run is stopped at twice its budget in any case. Codex and the direct API report counts after each response; Claude Code's stream also gives a live estimate, which only updates the usage shown.
 - `graceTokens`: output tokens a client may use after spending its budget (default 1,000).
+- `tokenLevels`: levels for `--mode tokens`, each with its own `maxOutputTokens` and a `seconds` safety limit.
 
 ## Token counts
 

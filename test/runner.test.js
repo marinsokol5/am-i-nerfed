@@ -335,6 +335,19 @@ test("a spent budget lets a client use its grace tokens, then stops it", async (
   assert.ok(result.outputTokensSeen >= 800 && result.outputTokensSeen < 2500, String(result.outputTokensSeen));
   assert.ok(result.wallSeconds < 8, String(result.wallSeconds));
 });
+test("a single response is stopped at twice the budget", async () => {
+  const started = Date.now();
+  const result = await supervise(process.execPath, ["-e",
+    "console.log(JSON.stringify({type:'stream_event',event:{type:'message_start',message:{id:'m1',usage:{input_tokens:1,output_tokens:1}}}}));" +
+    "setInterval(()=>console.log(JSON.stringify({type:'system',subtype:'thinking_tokens',estimated_tokens_delta:100})),50)",
+  ], {
+    cwd: os.tmpdir(), env: process.env, prompt: "x", deadline: () => started + 60000,
+    graceMs: 30000, maxOutputTokens: 500, graceTokens: 5000,
+  });
+  assert.equal(result.reason, "budget");
+  assert.ok(result.outputTokensSeen >= 1000, String(result.outputTokensSeen));
+  assert.ok(result.wallSeconds < 5, String(result.wallSeconds));
+});
 test("an output budget uses the native count when the client reports one", async () => {
   const started = Date.now();
   const result = await supervise(process.execPath, ["-e", "setInterval(()=>{},1000)"], {

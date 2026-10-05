@@ -23,8 +23,10 @@ test("the plan runs every configured model at every level through its provider's
   const runs = plan(config);
   assert.equal(runs.length, 6);
   assert.deepEqual(runs[0], { provider: "anthropic", agent: "claude", command: "am run acct",
-    model: "claude-a", difficulty: "easy", seconds: 90 });
+    model: "claude-a", difficulty: "easy", seconds: 90, maxOutputTokens: null });
   assert.deepEqual(plan(config, { models: ["gpt-a"], levels: ["hard"] }).map(runName), ["codex-gpt-a-hard-360"]);
+  const budgeted = { ...config, levels: [{ difficulty: "hard", seconds: 1800, maxOutputTokens: 25000 }] };
+  assert.deepEqual(plan(budgeted, { models: ["gpt-a"] }).map(runName), ["codex-gpt-a-hard-1800-25000t"]);
 });
 
 test("token counts prefer exact reports and mark estimates", () => {
@@ -44,7 +46,7 @@ test("token counts prefer exact reports and mark estimates", () => {
 
 test("results rank complete models by their mean score and list every run", () => {
   const records = [
-    record("claude", "claude-a", "easy", 90, 80, 60, { terminal: true,
+    record("claude", "claude-a", "easy", 90, 80, 60, { terminal: true, wallSeconds: 60,
       usage: { output_tokens: 1200, output_tokens_details: { thinking_tokens: 900 } },
       commandCounts: { start: 1, answer: 6, budget: 2, timer: 1 } }),
     record("claude", "claude-a", "hard", 360, 40, 360, { terminal: false, streamUsage: { input_tokens: 1,
@@ -55,10 +57,10 @@ test("results rank complete models by their mean score and list every run", () =
   ];
   const results = buildResults(records, config);
   assert.deepEqual(results.rows.map((row) => [row.model, row.average]), [["gpt-a", 70], ["claude-a", 60], ["claude-b", null]]);
-  assert.deepEqual(results.clients, { claude: "am run acct", codex: "codex" });
+  assert.deepEqual(results.clients, { anthropic: "am run acct", openai: "codex" });
   const table = markdown(results);
-  assert.match(table, /\| 1 \| `gpt-a` \| 90\.0% \| 50\.0% \| \*\*70\.0%\*\* \| 0 \/ 0 \| ~700 \/ — \| — \/ — \| — \/ — \|/);
-  assert.match(table, /\| 2 \| `claude-a` \| 80\.0% \| 40\.0% \| \*\*60\.0%\*\* \| 30 \/ 0 \| 1,200 \/ ~5,000 \| 900 \(75%\) \/ — \| 3 \/ — \|/);
+  assert.match(table, /\| 1 \| `gpt-a` \| 90\.0% \| 50\.0% \| \*\*70\.0%\*\* \| 0 \/ 0 \| ~700 \/ — \| — \/ — \| — \/ — \| — \/ — \|/);
+  assert.match(table, /\| 2 \| `claude-a` \| 80\.0% \| 40\.0% \| \*\*60\.0%\*\* \| 30 \/ 0 \| 1,200 \/ ~5,000 \| 900 \(75%\) \/ — \| 20 \/ — \| 3 \/ — \|/);
   assert.match(table, /\| — \| `claude-b` \| 100\.0% \| — \| \*\*—\*\* \|/);
   assert.equal(results.runs.length, 5);
   assert.equal(results.runs[0].answers, 1);
@@ -71,9 +73,9 @@ test("a run directory's settings are rebuilt from its records", () => {
     { harness: { run: { provider: "anthropic", agent: "claude", command: "am run acct", model: "claude-a", difficulty: "easy", seconds: 90 },
       effort: "high", graceSeconds: 30, maxOutputTokens: 5000, graceTokens: 1000 }, run: { systemPrompt: "none" } },
   ];
-  assert.deepEqual(configFromRecords(records), { effort: "high", graceSeconds: 30, retries: 0, maxOutputTokens: 5000,
+  assert.deepEqual(configFromRecords(records), { effort: "high", graceSeconds: 30, retries: 0, maxOutputTokens: null,
     graceTokens: 1000, systemPrompt: "none",
-    levels: [{ difficulty: "easy", seconds: 90 }, { difficulty: "hard", seconds: 360 }],
+    levels: [{ difficulty: "easy", seconds: 90, maxOutputTokens: 5000 }, { difficulty: "hard", seconds: 360, maxOutputTokens: 5000 }],
     providers: { openai: { agent: "codex", command: null, models: ["gpt-a"] },
       anthropic: { agent: "claude", command: "am run acct", models: ["claude-a"] } } });
 });

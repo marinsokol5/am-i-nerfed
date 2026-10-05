@@ -416,6 +416,11 @@ export async function supervise(
       stop("budget");
     }
     if (reason === "budget" && used >= usedAtClose + graceTokens) kill();
+    // One response may overshoot the budget, but never past twice the budget.
+    if (used >= 2 * maxOutputTokens) {
+      if (!reason) stop("budget");
+      kill();
+    }
   };
   const kill = () => {
     if (killTimer) return;

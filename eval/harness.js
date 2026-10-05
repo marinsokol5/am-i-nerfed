@@ -8,12 +8,16 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const usage = `usage: node eval/harness.js [--config FILE] [--models A,B] [--levels easy,hard]
-                          [--max-output-tokens N] [--out DIR] [--dry-run]
+const usage = `usage: node eval/harness.js [--config FILE] [--mode time|tokens] [--models A,B]
+                          [--levels easy,hard] [--max-output-tokens N] [--out DIR] [--dry-run]
        node eval/harness.js summarize RUN_DIR`;
 
-export const runName = ({ agent, model, difficulty, seconds }) =>
-  `${agent}-${model}-${difficulty}-${seconds}`;
+export const runName = ({ agent, model, difficulty, seconds, maxOutputTokens }) =>
+  `${agent}-${model}-${difficulty}-${seconds}${maxOutputTokens ? `-${maxOutputTokens}t` : ""}`;
+// A level's output budget, its own or the sweep's; null for a time limit.
+const budgetOf = (level, config) => level.maxOutputTokens ?? config.maxOutputTokens ?? null;
+const sameLevel = (a, b, config) => a.difficulty === b.difficulty && a.seconds === b.seconds
+  && budgetOf(a, config) === budgetOf(b, config);
 
 export function loadConfig(file) {
   const config = JSON.parse(fs.readFileSync(file, "utf8"));
@@ -35,8 +39,8 @@ export function plan(config, { models, levels } = {}) {
       .filter((model) => !models || models.includes(model))
       .flatMap((model) => config.levels
         .filter(({ difficulty }) => !levels || levels.includes(difficulty))
-        .map(({ difficulty, seconds }) => ({ provider, agent: settings.agent,
-          command: settings.command ?? null, model, difficulty, seconds }))));
+        .map((level) => ({ provider, agent: settings.agent, command: settings.command ?? null, model,
+          difficulty: level.difficulty, seconds: level.seconds, maxOutputTokens: budgetOf(level, config) }))));
 }
 
 // Codex counts come from its session log, which misses a response cut off by
@@ -64,8 +68,10 @@ export function tokenUsage(run) {
 export function runSummary(record) {
   const { harness, run } = record;
   const clock = run?.clock;
+  const tokens = tokenUsage(run), wall = run?.execution?.wallSeconds;
   return {
     ...harness.run,
+    maxOutputTokens: harness.run.maxOutputTokens ?? harness.maxOutputTokens ?? null,
     percent: run?.result?.percent ?? null,
     timeLeft: clock ? clock.durationSeconds - clock.elapsedSeconds : null,
     answers: (harness.progress ?? []).filter((line) => line.startsWith("answer:")).length,
@@ -73,7 +79,9 @@ export function runSummary(record) {
     budgetChecks: run?.execution?.commandCounts
       ? (run.execution.commandCounts.budget ?? 0) + (run.execution.commandCounts.timer ?? 0)
       : null,
-    tokens: tokenUsage(run),
+    tokens,
+    // Output over the client's whole wall time, including startup and commands.
+    tokensPerSecond: tokens && wall ? tokens.output / wall : null,
     status: run?.status ?? "missing",
     reason: run?.execution?.reason ?? null,
     failure: run?.execution?.failure ?? record.error ?? null,
@@ -86,7 +94,7 @@ export function buildResults(records, config) {
   const runs = records.map(runSummary);
   const rows = Object.values(config.providers).flatMap((provider) => provider.models).map((model) => {
     const levels = config.levels.map((level) =>
-      runs.find((run) => run.model === model && run.difficulty === level.difficulty && run.seconds === level.seconds) ?? null);
+      runs.find((run) => run.model === model && sameLevel(run, level, config)) ?? null);
     const complete = levels.every((run) => run?.percent != null);
     return { model, levels,
       average: complete ? levels.reduce((sum, run) => sum + run.percent, 0) / levels.length : null };
@@ -100,11 +108,10 @@ export function buildResults(records, config) {
     baselineId: first?.baselineId ?? null,
     effort: config.effort,
     graceSeconds: config.graceSeconds,
-    maxOutputTokens: config.maxOutputTokens,
     systemPrompt: config.systemPrompt,
-    levels: config.levels,
-    clients: Object.fromEntries(Object.values(config.providers)
-      .map((provider) => [provider.agent, provider.command ?? provider.agent])),
+    levels: config.levels.map((level) => ({ ...level, maxOutputTokens: budgetOf(level, config) })),
+    clients: Object.fromEntries(Object.entries(config.providers)
+      .map(([name, provider]) => [name, provider.command ?? provider.agent])),
     rows,
     runs,
   };
@@ -114,19 +121,21 @@ const percent = (value) => (value == null ? "—" : `${value.toFixed(1)}%`);
 const tokens = (usage) => (usage ? `${usage.exact ? "" : "~"}${usage.output.toLocaleString("en-US")}` : "—");
 const reasoning = (usage) => (usage?.reasoning == null ? "—"
   : `${usage.exact ? "" : "~"}${usage.reasoning.toLocaleString("en-US")} (${usage.output ? Math.round((100 * usage.reasoning) / usage.output) : 0}%)`);
-const levelName = ({ difficulty, seconds }) =>
-  `${difficulty[0].toUpperCase()}${difficulty.slice(1)} ${seconds}s`;
+const levelName = ({ difficulty, seconds, maxOutputTokens }) =>
+  `${difficulty[0].toUpperCase()}${difficulty.slice(1)} ${maxOutputTokens ? `${maxOutputTokens / 1000}k tokens` : `${seconds}s`}`;
+const speed = (run) => (run?.tokensPerSecond == null ? "—" : Math.round(run.tokensPerSecond));
 
 export function markdown(results) {
   const header = ["Rank", "Model", ...results.levels.map(levelName), "Average",
-    "Time left (s)", "Output tokens", "Reasoning tokens (share)", "Budget checks"];
+    "Time left (s)", "Output tokens", "Reasoning tokens (share)", "Tokens/s", "Budget checks"];
   const lines = [
     `# Evaluation ${results.generatedAt.slice(0, 16).replace("T", " ")} UTC`,
     "",
     `am-i-nerfed ${results.appVersion ?? "?"} · task bank v${results.taskBankVersion ?? "?"} · baseline ${results.baselineId?.slice(0, 8) ?? "?"} · effort ${results.effort} · system prompt ${results.systemPrompt} · grace ${results.graceSeconds}s${
-      results.maxOutputTokens ? ` · output budget ${results.maxOutputTokens.toLocaleString("en-US")} tokens` : ""}`,
+      results.levels.some((level) => level.maxOutputTokens) ? ` · output budgets with safety limits of ${
+        results.levels.map((level) => `${level.seconds}s`).join(" / ")}` : ""}`,
     "",
-    `Clients: ${Object.entries(results.clients).map(([agent, command]) => `${agent} \`${command}\``).join(" · ")}`,
+    `Clients: ${Object.entries(results.clients).map(([name, command]) => `${name} \`${command}\``).join(" · ")}`,
     "",
     `| ${header.join(" | ")} |`,
     `|${header.map((_, i) => (i === 1 ? "---" : "---:")).join("|")}|`,
@@ -135,16 +144,17 @@ export function markdown(results) {
       row.levels.map((run) => run?.timeLeft ?? "—").join(" / ")} | ${
       row.levels.map((run) => tokens(run?.tokens)).join(" / ")} | ${
       row.levels.map((run) => reasoning(run?.tokens)).join(" / ")} | ${
+      row.levels.map(speed).join(" / ")} | ${
       row.levels.map((run) => run?.budgetChecks ?? "—").join(" / ")} |`),
     "",
-    `Per-level columns list ${results.levels.map(levelName).join(" / ")}. Time left is the unused allowance when the model ended its turn or was stopped. Output tokens include reasoning tokens, whose share of the output is in brackets; \`~\` marks counts that miss a response cut off by the stop (Codex) or estimate it from the stream (Claude). Budget checks count the model's \`./assessment budget\` calls.`,
+    `Per-level columns list ${results.levels.map(levelName).join(" / ")}. Time left is the unused allowance when the model ended its turn or was stopped. Output tokens include reasoning tokens, whose share of the output is in brackets; \`~\` marks counts that miss a response cut off by the stop (Codex) or estimate it from the stream (Claude). Tokens/s divides output tokens by the client's wall time, including startup and assessment commands. Budget checks count the model's \`./assessment budget\` calls.`,
     "",
     "## Runs",
     "",
-    "| Model | Level | Score | Status | Time left (s) | Answers | Budget checks | Output tokens | Reasoning tokens (share) | Failure | Run |",
-    "|---|---|---:|---|---:|---:|---:|---:|---:|---|---|",
+    "| Model | Level | Score | Status | Time left (s) | Answers | Budget checks | Output tokens | Reasoning tokens (share) | Tokens/s | Failure | Run |",
+    "|---|---|---:|---|---:|---:|---:|---:|---:|---:|---|---|",
     ...results.runs.map((run) => `| \`${run.model}\` | ${levelName(run)} | ${percent(run.percent)} | ${run.status}${
-      run.reason ? ` (${run.reason})` : ""} | ${run.timeLeft ?? "—"} | ${run.answers} | ${run.budgetChecks ?? "—"} | ${tokens(run.tokens)} | ${reasoning(run.tokens)} | ${
+      run.reason ? ` (${run.reason})` : ""} | ${run.timeLeft ?? "—"} | ${run.answers} | ${run.budgetChecks ?? "—"} | ${tokens(run.tokens)} | ${reasoning(run.tokens)} | ${speed(run)} | ${
       run.failure ?? ""} | ${run.runId?.slice(0, 8) ?? ""} |`),
     "",
   ];
@@ -163,16 +173,17 @@ export function configFromRecords(records) {
   const levels = [], providers = {}, order = ["easy", "medium", "hard"];
   for (const { harness } of records) {
     const { agent, model, difficulty, seconds, provider, command } = harness.run;
-    if (!levels.some((level) => level.difficulty === difficulty && level.seconds === seconds))
-      levels.push({ difficulty, seconds });
+    const level = { difficulty, seconds, maxOutputTokens: harness.run.maxOutputTokens ?? harness.maxOutputTokens ?? null };
+    if (!levels.some((known) => sameLevel(known, level, {}))) levels.push(level);
     const name = provider ?? (agent === "claude" ? "anthropic" : "openai");
     providers[name] ??= { agent, command: command ?? null, models: [] };
     if (!providers[name].models.includes(model)) providers[name].models.push(model);
   }
   levels.sort((a, b) => order.indexOf(a.difficulty) - order.indexOf(b.difficulty) || a.seconds - b.seconds);
+  for (const level of levels) if (level.maxOutputTokens == null) delete level.maxOutputTokens;
   const first = records[0] ?? {};
   return { effort: first.harness?.effort, graceSeconds: first.harness?.graceSeconds ?? 0, retries: 0,
-    maxOutputTokens: first.harness?.maxOutputTokens ?? null, graceTokens: first.harness?.graceTokens ?? null,
+    maxOutputTokens: null, graceTokens: first.harness?.graceTokens ?? null,
     systemPrompt: first.harness?.systemPrompt ?? first.run?.systemPrompt ?? "native", levels, providers };
 }
 
@@ -202,8 +213,8 @@ function attempt(run, config, dir, number) {
   const args = [path.join(root, "bin", "am-i-nerfed.js"), "run", "--agent", run.agent, "--model", run.model,
     "--effort", config.effort, "--difficulty", run.difficulty, "--seconds", String(run.seconds),
     "--grace-seconds", String(config.graceSeconds), "--transcript", transcript, "--verbose",
-    ...(config.maxOutputTokens ? ["--max-output-tokens", String(config.maxOutputTokens)] : []),
-    ...(config.maxOutputTokens && config.graceTokens != null ? ["--grace-tokens", String(config.graceTokens)] : []),
+    ...(run.maxOutputTokens ? ["--max-output-tokens", String(run.maxOutputTokens)] : []),
+    ...(run.maxOutputTokens && config.graceTokens != null ? ["--grace-tokens", String(config.graceTokens)] : []),
     ...(config.systemPrompt === "none" ? ["--no-system-prompt"] : [])];
   const env = { ...process.env };
   if (run.command) env[`AM_I_NERFED_${run.agent.toUpperCase()}_COMMAND`] = run.command;
@@ -224,7 +235,7 @@ function attempt(run, config, dir, number) {
       try { parsed = JSON.parse(stdout); } catch { /* recorded as an error below */ }
       const record = {
         harness: { run, attempt: number, startedAt, exitCode, progress, command: run.command ?? run.agent,
-          effort: config.effort, graceSeconds: config.graceSeconds, maxOutputTokens: config.maxOutputTokens,
+          effort: config.effort, graceSeconds: config.graceSeconds, maxOutputTokens: run.maxOutputTokens,
           graceTokens: config.graceTokens, systemPrompt: config.systemPrompt },
         run: parsed,
         error: parsed ? null : stderr.trim().split("\n").slice(-5).join("\n") || "No run record",
@@ -238,14 +249,15 @@ function attempt(run, config, dir, number) {
 async function sweep(config, options) {
   const runs = plan(config, options);
   if (options.dryRun) {
-    for (const run of runs) console.log(`${run.agent} ${run.model} ${run.difficulty} ${run.seconds}s via ${run.command ?? run.agent}`);
+    for (const run of runs) console.log(`${run.agent} ${run.model} ${run.difficulty} ${run.seconds}s${
+      run.maxOutputTokens ? ` ${run.maxOutputTokens} tokens` : ""} via ${run.command ?? run.agent}`);
     return;
   }
   const dir = runDirectory(options.out);
   console.log(`Writing ${runs.length} runs to ${path.relative(process.cwd(), dir)}`);
   // The sweep's own settings, limited to what it runs, for later summaries.
   const planned = { ...config, levels: config.levels.filter((level) =>
-    runs.some((run) => run.difficulty === level.difficulty && run.seconds === level.seconds)),
+    runs.some((run) => sameLevel(run, level, config))),
   providers: Object.fromEntries(Object.entries(config.providers).map(([name, provider]) =>
     [name, { ...provider, models: provider.models.filter((model) => runs.some((run) => run.model === model)) }])
     .filter(([, provider]) => provider.models.length)) };
@@ -255,7 +267,7 @@ async function sweep(config, options) {
   if (fs.existsSync(saved)) {
     const previous = loadConfig(saved);
     for (const level of previous.levels)
-      if (!planned.levels.some((l) => l.difficulty === level.difficulty && l.seconds === level.seconds))
+      if (!planned.levels.some((known) => sameLevel(known, level, previous)))
         planned.levels.push(level);
     for (const [name, provider] of Object.entries(previous.providers)) {
       const current = (planned.providers[name] ??= { ...provider, models: [] });
@@ -268,7 +280,7 @@ async function sweep(config, options) {
   process.on("SIGINT", () => { stopping = true; });
   for (const run of runs) {
     if (stopping) break;
-    console.log(`${new Date().toLocaleTimeString()} ${run.model} ${run.difficulty} ${run.seconds}s`);
+    console.log(`${new Date().toLocaleTimeString()} ${run.model} ${levelName(run)}`);
     for (let number = 1; ; number++) {
       const record = await attempt(run, config, dir, number);
       // Only a client that never started the assessment is retried; a started
@@ -290,6 +302,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     return i >= 0 ? args[i + 1] : undefined;
   };
   const config = loadConfig(path.resolve(value("--config") ?? path.join(root, "eval", "models.json")));
+  if (value("--mode") === "tokens") {
+    if (!Array.isArray(config.tokenLevels)) throw Error("config.tokenLevels must list { difficulty, seconds, maxOutputTokens }");
+    config.levels = config.tokenLevels;
+  } else if (value("--mode") && value("--mode") !== "time") throw Error(usage);
   if (value("--max-output-tokens")) config.maxOutputTokens = Number(value("--max-output-tokens"));
   if (args.includes("--help")) console.log(usage);
   else if (args[0] === "summarize") {

@@ -1,21 +1,21 @@
 {
-  "generatedAt": "2026-10-05T09:12:49.354Z",
+  "generatedAt": "2026-10-05T12:23:11.853Z",
   "appVersion": "0.11.0",
   "taskBankVersion": 13,
   "baselineId": "b24557ac-7628-49d6-8f45-34f19ec43122",
   "effort": "high",
   "graceSeconds": 30,
-  "maxOutputTokens": 5000,
   "systemPrompt": "native",
   "levels": [
     {
       "difficulty": "medium",
-      "seconds": 900
+      "seconds": 900,
+      "maxOutputTokens": 5000
     }
   ],
   "clients": {
-    "claude": "am run claude-ms18",
-    "codex": "codex"
+    "anthropic": "am run claude-ms18",
+    "openai": "codex"
   },
   "rows": [
     {
@@ -28,6 +28,7 @@
           "model": "gpt-6-astra",
           "difficulty": "medium",
           "seconds": 900,
+          "maxOutputTokens": 5000,
           "percent": 82.66306792622582,
           "timeLeft": 669,
           "answers": 7,
@@ -38,6 +39,7 @@
             "input": 314996,
             "exact": true
           },
+          "tokensPerSecond": 21.63060854737291,
           "status": "finished",
           "reason": "budget",
           "failure": null,
@@ -56,6 +58,7 @@
           "model": "claude-opus-5-5",
           "difficulty": "medium",
           "seconds": 900,
+          "maxOutputTokens": 5000,
           "percent": 66.66666666666667,
           "timeLeft": 842,
           "answers": 6,
@@ -66,6 +69,7 @@
             "exact": true,
             "input": 105520
           },
+          "tokensPerSecond": 85.09192238420498,
           "status": "finished",
           "reason": "finished",
           "failure": null,
@@ -83,6 +87,7 @@
       "model": "claude-opus-5-5",
       "difficulty": "medium",
       "seconds": 900,
+      "maxOutputTokens": 5000,
       "percent": 66.66666666666667,
       "timeLeft": 842,
       "answers": 6,
@@ -93,6 +98,7 @@
         "exact": true,
         "input": 105520
       },
+      "tokensPerSecond": 85.09192238420498,
       "status": "finished",
       "reason": "finished",
       "failure": null,
@@ -105,6 +111,7 @@
       "model": "gpt-6-astra",
       "difficulty": "medium",
       "seconds": 900,
+      "maxOutputTokens": 5000,
       "percent": 82.66306792622582,
       "timeLeft": 669,
       "answers": 7,
@@ -115,6 +122,7 @@
         "input": 314996,
         "exact": true
       },
+      "tokensPerSecond": 21.63060854737291,
       "status": "finished",
       "reason": "budget",
       "failure": null,

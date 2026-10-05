@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-10-05T09:31:02.867Z",
+  "generatedAt": "2026-10-05T12:23:12.037Z",
   "appVersion": "0.11.0",
   "taskBankVersion": 13,
   "baselineId": "b24557ac-7628-49d6-8f45-34f19ec43122",
   "effort": "high",
   "graceSeconds": 30,
-  "maxOutputTokens": null,
   "systemPrompt": "none",
   "levels": [
     {
       "difficulty": "medium",
-      "seconds": 120
+      "seconds": 120,
+      "maxOutputTokens": null
     }
   ],
   "clients": {
-    "claude": "node /Users/marinsokol/projects/hard-challenge-skill/eval/api-client.js --key-file /private/tmp/claude-501/-Users-marinsokol-projects-hard-challenge-skill/dfeef96e-8a85-482a-a822-1f2a3eecee9b/scratchpad/anthropic-api-key"
+    "anthropic-api": "node /Users/marinsokol/projects/hard-challenge-skill/eval/api-client.js --key-file /private/tmp/claude-501/-Users-marinsokol-projects-hard-challenge-skill/dfeef96e-8a85-482a-a822-1f2a3eecee9b/scratchpad/anthropic-api-key"
   },
   "rows": [
     {
@@ -27,6 +27,7 @@
           "model": "claude-opus-5-5",
           "difficulty": "medium",
           "seconds": 120,
+          "maxOutputTokens": null,
           "percent": 62.76990553306342,
           "timeLeft": 3,
           "answers": 6,
@@ -37,6 +38,7 @@
             "exact": true,
             "input": 74370
           },
+          "tokensPerSecond": 44.74558936333418,
           "status": "finished",
           "reason": "finished",
           "failure": null,
@@ -54,6 +56,7 @@
       "model": "claude-opus-5-5",
       "difficulty": "medium",
       "seconds": 120,
+      "maxOutputTokens": null,
       "percent": 62.76990553306342,
       "timeLeft": 3,
       "answers": 6,
@@ -64,6 +67,7 @@
         "exact": true,
         "input": 74370
       },
+      "tokensPerSecond": 44.74558936333418,
       "status": "finished",
       "reason": "finished",
       "failure": null,

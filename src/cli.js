@@ -65,7 +65,7 @@ reasoning, instead of a time limit; --seconds then only sets a safety limit
 (default 1800). Every response shows the tokens used. Answers from a client
 response that starts after the budget is spent are rejected; the client may
 then use --grace-tokens (default 1000) more within --grace-seconds (default
-30) to end its turn.
+30) to end its turn. A run is stopped at twice its budget in any case.
 start/question/answer/status/finish compose an in-context assessment. They
 enforce the answer deadline but cannot stop an independently hosted agent.
 Difficulty and reasoning effort are different settings. Unknown metadata
