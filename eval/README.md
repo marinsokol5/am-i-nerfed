@@ -35,3 +35,17 @@ A client that fails before the assessment starts is retried `retries` times; its
 ## Token counts
 
 Output tokens include reasoning tokens: Codex's `reasoning_output_tokens` and Claude's `thinking_tokens`, reported per response and at the end of a turn. Exact counts come from the client's own reports. A Codex run stopped before it ends its turn reports the last count in its session log, which misses the response that was cut off. Claude's stream reports each finished response's exact output; a Claude run stopped mid-response estimates only that last response. `result.md` marks both with `~`.
+
+## Direct API runs
+
+`eval/api-client.js` stands in for the `claude` CLI and calls the Messages API itself, so a run has no client harness: no system prompt, and one tool, `assessment`, that runs an assessment command. Use it as an Anthropic provider's `command`, with the API key in a file outside the repository:
+
+```json
+"anthropic-api": {
+  "agent": "claude",
+  "command": "node /path/to/eval/api-client.js --key-file /path/outside/repo/anthropic-api-key",
+  "models": ["claude-opus-5-5"]
+}
+```
+
+It uses adaptive thinking at the configured effort, with prompt caching, and reports each response's exact usage. Its thinking is not streamed, so a token budget is checked after each response, as with Codex, and can be exceeded by one response.

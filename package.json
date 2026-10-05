@@ -24,5 +24,8 @@
   "dependencies": {
     "skills": "1.7.0"
   },
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "@anthropic-ai/sdk": "^0.131.0"
+  }
 }

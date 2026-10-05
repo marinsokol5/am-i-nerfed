@@ -1,0 +1,23 @@
+{
+  "graceSeconds": 30,
+  "retries": 1,
+  "maxOutputTokens": 5000,
+  "graceTokens": 1000,
+  "systemPrompt": "none",
+  "effort": "high",
+  "levels": [
+    {
+      "difficulty": "medium",
+      "seconds": 900
+    }
+  ],
+  "providers": {
+    "anthropic-api": {
+      "agent": "claude",
+      "command": "node /Users/marinsokol/projects/hard-challenge-skill/eval/api-client.js --key-file /private/tmp/claude-501/-Users-marinsokol-projects-hard-challenge-skill/dfeef96e-8a85-482a-a822-1f2a3eecee9b/scratchpad/anthropic-api-key",
+      "models": [
+        "claude-opus-5-5"
+      ]
+    }
+  }
+}
