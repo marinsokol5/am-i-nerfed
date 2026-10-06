@@ -91,6 +91,31 @@ test("completed status keeps scores compact and normalizes legacy receipts witho
   assert.equal("bankHash" in history, false);
 });
 
+test("history list shows output tokens against the budget", t => {
+  const f = fixture(t);
+  const finished = () => {
+    const start = f.json("start");
+    f.json("finish", "--run", start.runId);
+    return start.runId;
+  };
+  const budgeted = finished(), timed = finished();
+  finished();
+  const edit = (id, execution) => {
+    const file = f.recordPath(id), record = JSON.parse(fs.readFileSync(file));
+    fs.writeFileSync(file, JSON.stringify({ ...record, execution }));
+  };
+  edit(budgeted, { terminal: false, maxOutputTokens: 10000, streamUsage: { estimated_output_tokens: 10148,
+    input_tokens: 1, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } });
+  edit(timed, { terminal: false, maxOutputTokens: null,
+    nativeEvidence: { reportedTokenUsage: { output_tokens: 4635, input_tokens: 9 } } });
+  const result = f.exec("history", "list");
+  assert.equal(result.status, 0, result.stderr);
+  const [header, ...rows] = result.stdout.trim().split("\n").map(line => line.split(/\s{2,}/));
+  assert.equal(header[header.indexOf("Seconds") + 1], "Tokens");
+  const column = rows.map(row => row[header.indexOf("Tokens")]).sort();
+  assert.deepEqual(column, ["10148/10000", "4635", "—"].sort());
+});
+
 test("question returns task text, response shape, submitted answers and remaining seconds only", t => {
   const f = fixture(t), start = f.json("start", "--seconds", "500", "--difficulty", "easy");
   const taskId = start.tasks[0];

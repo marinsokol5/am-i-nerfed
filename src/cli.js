@@ -20,6 +20,7 @@ import {
   destroyHistory,
 } from "./assessment.js";
 import { clientCommand, runAssessment } from "./runner.js";
+import { tokenUsage } from "./usage.js";
 import {
   formatRun,
   formatQuestion,
@@ -97,6 +98,13 @@ const print = (value) =>
 const emit = (value) => process.stdout.write(JSON.stringify(value) + "\n");
 const text = (value) =>
   String(value ?? "unknown").replace(/[\u0000-\u001f\u007f]/g, " ");
+// Output tokens, against the budget when the run had one.
+const tokens = (run) => {
+  const used = tokenUsage(run)?.output;
+  const limit = run.execution?.maxOutputTokens;
+  if (used == null) return limit ? `—/${limit}` : "—";
+  return limit ? `${used}/${limit}` : String(used);
+};
 function printHistory(history) {
   if (!history.runs.length) {
     process.stdout.write("No matching assessments.\n");
@@ -113,6 +121,7 @@ function printHistory(history) {
       "Difficulty",
       "Score",
       "Seconds",
+      "Tokens",
       "App",
       "Bank",
       "Status",
@@ -127,6 +136,7 @@ function printHistory(history) {
       r.difficulty,
       r.percent == null ? "—" : `${r.percent.toFixed(1)}%`,
       `${r.elapsedSeconds}/${r.durationSeconds}`,
+      tokens(r),
       r.appVersion,
       `v${r.taskBankVersion}/${r.baselineId.slice(0, 8)}`,
       r.status,
