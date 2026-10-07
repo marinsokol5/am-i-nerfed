@@ -357,6 +357,9 @@ export async function supervise(
   const observedModels = new Set(),
     observedEfforts = new Set(),
     started = Date.now();
+  // A safety classifier can stop a Claude response, after which Claude Code
+  // may continue the session on another model.
+  let refusal = null;
   // Claude streams each response's input and cache tokens exactly. Partial
   // messages report each finished response's exact output; the response in
   // progress is estimated from thinking progress and streamed characters.
@@ -487,6 +490,20 @@ export async function supervise(
       if (typeof e.message?.model === "string")
         observedModels.add(e.message.model);
       if (typeof e.effort === "string") observedEfforts.add(e.effort);
+      const stopped =
+        e.type === "stream_event" && e.event?.type === "message_delta"
+          ? e.event.delta
+          : e.type === "assistant"
+            ? e.message
+            : null;
+      if (stopped?.stop_reason === "refusal")
+        refusal ??= { category: stopped.stop_details?.category ?? null };
+      if (e.type === "system" && e.subtype === "model_refusal_fallback")
+        refusal = {
+          category: e.api_refusal_category ?? refusal?.category ?? null,
+          from: e.original_model ?? null,
+          to: e.fallback_model ?? null,
+        };
       if (e.type === "system" && e.subtype === "thinking_tokens")
         thinkingEstimate += Number(e.estimated_tokens_delta) || 0;
       const streamed = e.type === "stream_event" ? e.event : null;
@@ -621,8 +638,19 @@ export async function supervise(
     stoppedAt: stoppedAt ?? Date.now(),
     observedModels: [...observedModels],
     observedEfforts: [...observedEfforts],
+    refusal,
     wallSeconds: (Date.now() - started) / 1000,
   };
+}
+
+// Names a safety classifier refusal behind a failure, including the model
+// Claude Code switched to after it.
+export function explainRefusal(failure, refusal) {
+  if (!failure || !refusal) return failure;
+  const category = refusal.category ? ` (${refusal.category})` : "";
+  if (refusal.to && failure === "Client switched to a different model")
+    return `Safety classifier refused a response${category}; client switched from ${refusal.from} to ${refusal.to}`;
+  return `${failure}, after a safety classifier refused a response${category}`;
 }
 
 export async function runAssessment(options) {
@@ -830,6 +858,7 @@ export async function runAssessment(options) {
     const sameModel = (value) => value === model || new RegExp(`^${model.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}-\\d{8}$`).test(value);
     if (agent === "claude" && !execution.observedModels.every(sameModel))
       execution.failure = "Client switched to a different model";
+    execution.failure = explainRefusal(execution.failure, execution.refusal);
     if (!fs.existsSync(runFile)) {
       execution.failure ??= "Client ended before starting an assessment";
       return withLock((root) => {

@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   supervise,
+  explainRefusal,
   nativeCommand,
   cleanEnvironment,
   permittedCommand,
@@ -281,6 +282,27 @@ test("partial messages count each finished Claude response exactly and estimate 
     { type: "system", subtype: "thinking_tokens", estimated_tokens_delta: 50 }, ...rest]);
   assert.deepEqual([cut.streamUsage.estimated_output_tokens, cut.streamUsage.estimated_reasoning_tokens,
     cut.streamUsage.exact], [120 + 50 + 10, 60 + 50, false]);
+});
+test("a safety classifier refusal and Claude Code's model fallback are recorded and named in the failure", async () => {
+  const events = [
+    { type: "stream_event", event: { type: "message_start", message: { id: "m1", model: "claude-x" } } },
+    { type: "stream_event", event: { type: "message_delta", delta: { stop_reason: "refusal",
+      stop_details: { type: "refusal", category: "cyber" } } } },
+    { type: "system", subtype: "model_refusal_fallback", original_model: "claude-x",
+      fallback_model: "claude-y", api_refusal_category: "cyber" },
+    { type: "assistant", message: { id: "m2", model: "claude-y", content: [{ type: "text", text: "ok" }] } },
+  ];
+  const done = await supervise(process.execPath, ["-e",
+    `for (const e of ${JSON.stringify(events)}) console.log(JSON.stringify(e));setInterval(()=>{},1000)`,
+  ], { cwd: os.tmpdir(), env: process.env, prompt: "x", deadline: () => Date.now() + 600 });
+  assert.deepEqual(done.refusal, { category: "cyber", from: "claude-x", to: "claude-y" });
+  assert.deepEqual(done.observedModels, ["claude-x", "claude-y"]);
+  assert.equal(explainRefusal("Client switched to a different model", done.refusal),
+    "Safety classifier refused a response (cyber); client switched from claude-x to claude-y");
+  assert.equal(explainRefusal("Disallowed solver tool or shell command", { category: "cyber" }),
+    "Disallowed solver tool or shell command, after a safety classifier refused a response (cyber)");
+  assert.equal(explainRefusal(null, done.refusal), null);
+  assert.equal(explainRefusal("Assessment did not start", null), "Assessment did not start");
 });
 test("a client still working when its grace period ends is stopped", async () => {
   const started = Date.now();
