@@ -498,12 +498,17 @@ export async function supervise(
             : null;
       if (stopped?.stop_reason === "refusal")
         refusal ??= { category: stopped.stop_details?.category ?? null };
-      if (e.type === "system" && e.subtype === "model_refusal_fallback")
+      // Every response after a fallback comes from another model, so the run
+      // can no longer measure the requested one; stop it now.
+      if (e.type === "system" && e.subtype === "model_refusal_fallback") {
         refusal = {
           category: e.api_refusal_category ?? refusal?.category ?? null,
           from: e.original_model ?? null,
           to: e.fallback_model ?? null,
         };
+        failure ??= "Client switched to a different model";
+        stop("failed");
+      }
       if (e.type === "system" && e.subtype === "thinking_tokens")
         thinkingEstimate += Number(e.estimated_tokens_delta) || 0;
       const streamed = e.type === "stream_event" ? e.event : null;

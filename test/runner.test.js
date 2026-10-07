@@ -294,9 +294,11 @@ test("a safety classifier refusal and Claude Code's model fallback are recorded 
   ];
   const done = await supervise(process.execPath, ["-e",
     `for (const e of ${JSON.stringify(events)}) console.log(JSON.stringify(e));setInterval(()=>{},1000)`,
-  ], { cwd: os.tmpdir(), env: process.env, prompt: "x", deadline: () => Date.now() + 600 });
+  ], { cwd: os.tmpdir(), env: process.env, prompt: "x", deadline: () => Date.now() + 60_000 });
   assert.deepEqual(done.refusal, { category: "cyber", from: "claude-x", to: "claude-y" });
-  assert.deepEqual(done.observedModels, ["claude-x", "claude-y"]);
+  assert.equal(done.reason, "failed");
+  assert.equal(done.failure, "Client switched to a different model");
+  assert.ok(done.wallSeconds < 3, "A fallback stops the run without waiting for the deadline");
   assert.equal(explainRefusal("Client switched to a different model", done.refusal),
     "Safety classifier refused a response (cyber); client switched from claude-x to claude-y");
   assert.equal(explainRefusal("Disallowed solver tool or shell command", { category: "cyber" }),
