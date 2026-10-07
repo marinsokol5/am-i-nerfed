@@ -1,6 +1,6 @@
 {
   "name": "am-i-nerfed",
-  "version": "0.12.1",
+  "version": "0.12.2",
   "description": "A private, repeatable reasoning benchmark for your current coding agent",
   "type": "module",
   "bin": {
