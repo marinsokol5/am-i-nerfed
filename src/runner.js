@@ -359,7 +359,9 @@ export async function supervise(
     started = Date.now();
   // A safety classifier can stop a Claude response, after which Claude Code
   // may continue the session on another model.
-  let refusal = null;
+  let refusal = null,
+    failureEvent = null,
+    stderr = "";
   // Claude streams each response's input and cache tokens exactly. Partial
   // messages report each finished response's exact output; the response in
   // progress is estimated from thinking progress and streamed characters.
@@ -459,7 +461,9 @@ export async function supervise(
       checkBudget();
     }
   }, 25);
-  child.stderr.resume();
+  child.stderr.on("data", (b) => {
+    stderr = (stderr + b.toString()).slice(-DETAIL_LIMIT);
+  });
   child.once("exit", (code) => {
     if (code !== 0 && !reason) {
       failure = "Client exited unexpectedly";
@@ -573,7 +577,8 @@ export async function supervise(
         e.permission_denials?.length
       ) {
         if (!reason) {
-          failure = "Client or permission error";
+          failureEvent = clientErrorDetail(e);
+          failure = clientErrorFailure(failureEvent);
           stop("failed");
         }
       }
@@ -644,8 +649,45 @@ export async function supervise(
     observedModels: [...observedModels],
     observedEfforts: [...observedEfforts],
     refusal,
+    failureEvent,
+    stderr: reason === "failed" && stderr ? stderr : null,
     wallSeconds: (Date.now() - started) / 1000,
   };
+}
+
+const DETAIL_LIMIT = 2000;
+
+// What a client said about an error. Reasoning and tool inputs on the same
+// event are left out: they can hold answers and do not explain the error.
+export function clientErrorDetail(e) {
+  const text = (value) =>
+    typeof value === "string" ? value : value?.message ?? (value ? JSON.stringify(value) : null);
+  const parts = [
+    e.error === true ? null : e.error,
+    typeof e.message === "string" ? e.message : null,
+    e.is_error ? e.result : null,
+    ...[e.errors ?? []].flat(),
+    ...(e.error && Array.isArray(e.message?.content)
+      ? e.message.content.filter((b) => b.type === "text").map((b) => b.text)
+      : []),
+    ...(Array.isArray(e.permission_denials)
+      ? e.permission_denials.map((d) => `Permission denied: ${d?.tool_name ?? "unknown tool"}`)
+      : []),
+  ]
+    .map(text)
+    .filter(Boolean);
+  return {
+    type: e.type,
+    subtype: e.subtype,
+    status: e.api_error_status,
+    tool: e.tool_name,
+    message: [...new Set(parts)].join("; ").slice(0, DETAIL_LIMIT) || undefined,
+  };
+}
+
+function clientErrorFailure(detail) {
+  const message = detail.message?.replace(/\s+/g, " ").trim().slice(0, 200);
+  return message ? `Client or permission error: ${message}` : "Client or permission error";
 }
 
 // Names a safety classifier refusal behind a failure, including the model

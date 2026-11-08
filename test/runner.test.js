@@ -306,6 +306,33 @@ test("a safety classifier refusal and Claude Code's model fallback are recorded 
   assert.equal(explainRefusal(null, done.refusal), null);
   assert.equal(explainRefusal("Assessment did not start", null), "Assessment did not start");
 });
+test("a client error keeps what the client said, without reasoning or tool inputs", async () => {
+  const fail = (event, err = "") => supervise(process.execPath, ["-e",
+    `process.stderr.write(${JSON.stringify(err)});console.log(${JSON.stringify(JSON.stringify(event))});setInterval(()=>{},1000)`,
+  ], { cwd: os.tmpdir(), env: process.env, prompt: "x", deadline: () => Date.now() + 60_000 });
+  const done = await fail({ type: "assistant", error: "rate_limit", message: { content: [
+    { type: "thinking", thinking: "SECRET ANSWER" },
+    { type: "tool_use", name: "Bash", input: { command: "./assessment timer" } },
+    { type: "text", text: "API Error:\n  usage limit reached" },
+  ] } }, "client warning\n");
+  assert.equal(done.reason, "failed");
+  assert.equal(done.failure, "Client or permission error: rate_limit; API Error: usage limit reached");
+  assert.deepEqual(JSON.parse(JSON.stringify(done.failureEvent)),
+    { type: "assistant", message: "rate_limit; API Error:\n  usage limit reached" });
+  assert.equal(done.stderr, "client warning\n");
+  assert.doesNotMatch(JSON.stringify(done.failureEvent), /SECRET|assessment timer/);
+
+  const result = await fail({ type: "result", subtype: "error_during_execution", is_error: true,
+    api_error_status: 529, errors: ["Overloaded"], permission_denials: [
+      { tool_name: "WebFetch", tool_input: { url: "SECRET" } }] });
+  assert.equal(result.failure, "Client or permission error: Overloaded; Permission denied: WebFetch");
+  assert.equal(result.failureEvent.status, 529);
+  assert.equal(result.stderr, null);
+  assert.doesNotMatch(JSON.stringify(result.failureEvent), /SECRET/);
+
+  const bare = await fail({ type: "error" });
+  assert.equal(bare.failure, "Client or permission error");
+});
 test("a client still working when its grace period ends is stopped", async () => {
   const started = Date.now();
   const result = await supervise(process.execPath, ["-e", "setInterval(()=>{},1000)"], {
